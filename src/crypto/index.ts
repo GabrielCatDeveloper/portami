@@ -180,7 +180,7 @@ export async function importEcdhPub(raw: Uint8Array): Promise<CryptoKey> {
 export async function deriveSharedAesKey(
   privKey: CryptoKey,
   otherPubKey: CryptoKey,
-  salt: Uint8Array,
+  _salt: Uint8Array,
 ): Promise<CryptoKey> {
   return crypto.subtle.deriveKey(
     { name: 'ECDH', public: otherPubKey },

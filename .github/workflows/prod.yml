@@ -1,12 +1,16 @@
 name: Build & Deploy (prod)
 
 on:
-  # Trigger ONLY when something is pushed to the prod branch.
-  # The user merges main -> prod (or force-pushes main to prod) to publish.
-  # paths-ignore prevents the workflow from re-firing when it writes the
-  # build artifacts back into prod (no infinite recursion).
+  # Trigger on push to main (the source branch you work on).
+  # Publishes the compiled site into the prod branch, which GitHub Pages
+  # serves at https://<user>.github.io/portami/.
+  #
+  # NOTE: we cannot trigger on push to prod directly, because peaceiris/
+  # actions-gh-pages refuses to publish a branch to itself ("You deploy from
+  # prod to prod"). The recommended alternative is to publish on every push
+  # to main; workflow_dispatch is also available for manual deploys.
   push:
-    branches: [prod]
+    branches: [main]
     paths-ignore:
       - 'dist/**'
       - 'assets/**'

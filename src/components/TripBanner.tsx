@@ -1,13 +1,12 @@
-import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTripStore } from '@/state/trip';
 import { useIdentityStore } from '@/state/identity';
-import { haversine, nearestStop, formatDistance } from '@/geo/distance';
+import { nearestStop } from '@/geo/distance';
 
 type Props = { onEndClick: () => void };
 
 export function TripBanner({ onEndClick }: Props) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const activeTrip = useTripStore((s) => s.activeTrip);
   const lastSample = useTripStore((s) => s.lastSample);
   const route = useTripStore((s) => s.route);

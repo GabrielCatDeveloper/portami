@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { computePairCode } from '@/sync/pairCode';
-import { encryptIdentityForPeer, decryptIdentityFromPeer } from '@/sync/identityTransfer';
-import { generateEcdh, importEcdhPub, deriveSharedAesKey } from '@/crypto';
+import { generateEcdh, deriveSharedAesKey } from '@/crypto';
 
 describe('pairCode', () => {
   it('is symmetric and deterministic', async () => {

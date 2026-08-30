@@ -10,7 +10,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
-const busIcon = L.divIcon({
+const _busIcon = L.divIcon({
   className: 'portami-marker',
   html: `<div class="portami-marker-bus"><svg width="20" height="20" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="0">
     <rect x="4" y="6" width="15" height="12" rx="2" fill="#0f766e"/>

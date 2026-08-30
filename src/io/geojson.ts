@@ -12,7 +12,6 @@ import {
   randomUUID,
 } from '@/crypto';
 import { getDB } from '@/storage/db';
-import type { Route, RouteEditProposal } from '@/api/types';
 
 export type PortamiExport = {
   type: 'FeatureCollection';
