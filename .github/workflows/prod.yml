@@ -1,11 +1,12 @@
 name: Build & Deploy (prod)
 
 on:
-  # Trigger on push to main (the source branch the user works on) and to prod
-  # (the artifact branch GitHub Pages serves). paths-ignore prevents infinite
-  # recursion when the workflow itself commits to prod.
+  # Trigger ONLY when something is pushed to the prod branch.
+  # The user merges main -> prod (or force-pushes main to prod) to publish.
+  # paths-ignore prevents the workflow from re-firing when it writes the
+  # build artifacts back into prod (no infinite recursion).
   push:
-    branches: [main, prod]
+    branches: [prod]
     paths-ignore:
       - 'dist/**'
       - 'assets/**'
