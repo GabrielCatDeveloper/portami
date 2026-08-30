@@ -73,13 +73,16 @@ jobs:
             *) echo "::error::manifest icon src must start with /portami/icons/" && exit 1 ;;
           esac
 
-      # Publish the built dist/ into the prod branch itself (replacing its contents).
-      # GitHub Pages is configured to serve from Branch: prod, /(root), so the
-      # site is available at https://<user>.github.io/portami/ as soon as this
-      # step finishes.
+      # Publish the built dist/ into the prod branch itself, replacing its
+      # previous contents. After this step, prod holds only the compiled site
+      # (assets/, index.html, sw.js, manifest.webmanifest, ...).
       #
-      # Flow: develop on main -> merge main into prod -> push prod -> this
-      # workflow runs -> prod is replaced with the compiled site.
+      # GitHub Pages must be configured with Source = "Deploy from a branch",
+      # Branch = "prod", folder = "/(root)". Then the PWA is served at
+      # https://<user>.github.io/portami/.
+      #
+      # Publishing again: from main, just push to prod again (the workflow
+      # rebuilds from main and overwrites prod's artifacts each time).
       - name: Publish to prod branch
         uses: peaceiris/actions-gh-pages@v4
         with:
