@@ -5,8 +5,12 @@
 // Strategy:
 //  - Precached app shell (handled by vite-plugin-pwa)
 //  - Runtime cache for OSM tiles (CacheFirst, 7d expiry)
-//  - Runtime cache for /api GETs (NetworkFirst, fallback to IndexedDB on SW side handled by client)
+//  - Runtime cache for /api GETs (NetworkFirst)
 //  - Notification handler
+//
+// IMPORTANT: all asset URLs (icons, navigation) are resolved against
+// self.registration.scope so the SW works under any base path
+// (GitHub Pages /portami/, custom domain /, etc.).
 // ============================================================
 
 import { precacheAndRoute } from 'workbox-precaching';
@@ -19,6 +23,10 @@ declare const self: ServiceWorkerGlobalScope;
 
 self.skipWaiting();
 clientsClaim();
+
+// Base path resolved at runtime — works on GitHub Pages (/portami/) or domain root (/)
+const BASE = new URL('./', self.registration?.scope ?? self.location.href).href;
+const iconUrl = (size: 192 | 512) => new URL(`icons/icon-${size}.png`, BASE).href;
 
 // Precache manifest injected by vite-plugin-pwa
 precacheAndRoute(self.__WB_MANIFEST);
@@ -67,8 +75,8 @@ self.addEventListener('message', (event: ExtendableMessageEvent) => {
     void self.registration.showNotification(title ?? 'portami', {
       body: body ?? '',
       tag: tag ?? 'portami',
-      icon: '/icons/icon-192.png',
-      badge: '/icons/icon-192.png',
+      icon: iconUrl(192),
+      badge: iconUrl(192),
       data: { url },
       requireInteraction: !!requireInteraction,
       ...({ vibrate: [120, 60, 120] } as any),
@@ -78,7 +86,7 @@ self.addEventListener('message', (event: ExtendableMessageEvent) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = (event.notification.data?.url as string) ?? '/';
+  const targetUrl = (event.notification.data?.url as string) ?? BASE;
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
       for (const w of wins) {
