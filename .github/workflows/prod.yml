@@ -17,7 +17,13 @@ jobs:
     name: Build & test
     runs-on: ubuntu-latest
     steps:
+      # Source is always read from main, even though the trigger fires on prod.
+      # This way prod's contents (which become the build artifacts after each
+      # run) never need to be merged back into main or vice-versa.
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
 
       - uses: actions/setup-node@v4
         with:
@@ -67,15 +73,19 @@ jobs:
             *) echo "::error::manifest icon src must start with /portami/icons/" && exit 1 ;;
           esac
 
-      # No-CDN publish to gh-pages branch. GitHub Pages then serves that branch
-      # at https://<user>.github.io/portami/. The user only needs to set
-      # Settings → Pages → Source: "Deploy from a branch" → Branch: gh-pages, /(root).
-      - name: Publish to gh-pages branch
+      # Publish the built dist/ into the prod branch itself (replacing its contents).
+      # GitHub Pages is configured to serve from Branch: prod, /(root), so the
+      # site is available at https://<user>.github.io/portami/ as soon as this
+      # step finishes.
+      #
+      # Flow: develop on main -> merge main into prod -> push prod -> this
+      # workflow runs -> prod is replaced with the compiled site.
+      - name: Publish to prod branch
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
-          publish_branch: gh-pages
+          publish_branch: prod
           keep_files: false
           disable_nojekyll: true
           user_name: 'github-actions[bot]'
