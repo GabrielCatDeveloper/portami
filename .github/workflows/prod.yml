@@ -1,12 +1,11 @@
 name: Build & Deploy (prod)
 
 on:
+  # Trigger on push to main (the source branch the user works on) and to prod
+  # (the artifact branch GitHub Pages serves). paths-ignore prevents infinite
+  # recursion when the workflow itself commits to prod.
   push:
-    branches: [prod]
-    # CRITICAL: ignore paths that the workflow itself writes (the build output
-    # pushed to prod by peaceiris/actions-gh-pages). Without this, every push
-    # to prod would re-trigger the workflow -> infinite recursion.
-    # Only trigger when actual source/config files change.
+    branches: [main, prod]
     paths-ignore:
       - 'dist/**'
       - 'assets/**'
@@ -36,14 +35,14 @@ jobs:
   build:
     name: Build & test
     runs-on: ubuntu-latest
-    # Defense-in-depth: even if paths-ignore missed something, refuse to run
-    # when the commit was made by the bot itself. Manual workflow_dispatch
-    # triggers always pass this check (actor is the human who clicked Run).
+    # Defense-in-depth: refuse to run when the commit was made by the bot
+    # itself. Manual workflow_dispatch always passes (actor is the human who
+    # clicked Run).
     if: github.actor != 'github-actions[bot]'
     steps:
-      # Source is always read from main, even though the trigger fires on prod.
-      # This way prod's contents (which become the build artifacts after each
-      # run) never need to be merged back into main or vice-versa.
+      # Always read the source from main. The workflow builds the source
+      # currently on main and writes the compiled output into the prod branch,
+      # regardless of which branch triggered the run.
       - uses: actions/checkout@v4
         with:
           ref: main
