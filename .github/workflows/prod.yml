@@ -6,9 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
@@ -69,18 +67,17 @@ jobs:
             *) echo "::error::manifest icon src must start with /portami/icons/" && exit 1 ;;
           esac
 
-      - name: Upload build artifact
-        uses: actions/upload-pages-artifact@v3
+      # No-CDN publish to gh-pages branch. GitHub Pages then serves that branch
+      # at https://<user>.github.io/portami/. The user only needs to set
+      # Settings → Pages → Source: "Deploy from a branch" → Branch: gh-pages, /(root).
+      - name: Publish to gh-pages branch
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: ./dist
-
-  deploy:
-    name: Deploy to GitHub Pages
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          publish_branch: gh-pages
+          keep_files: false
+          disable_nojekyll: true
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          commit_message: 'deploy: ${{ github.event.head_commit.message }}'
