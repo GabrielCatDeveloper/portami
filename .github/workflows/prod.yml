@@ -3,6 +3,26 @@ name: Build & Deploy (prod)
 on:
   push:
     branches: [prod]
+    # CRITICAL: ignore paths that the workflow itself writes (the build output
+    # pushed to prod by peaceiris/actions-gh-pages). Without this, every push
+    # to prod would re-trigger the workflow -> infinite recursion.
+    # Only trigger when actual source/config files change.
+    paths-ignore:
+      - 'dist/**'
+      - 'assets/**'
+      - 'icons/**'
+      - 'locales/**'
+      - 'sw.js'
+      - 'sw.js.map'
+      - 'manifest.webmanifest'
+      - 'index.html'
+      - 'mockServiceWorker.js'
+      - '*.png'
+      - '*.svg'
+      - '*.webp'
+      - '*.ico'
+      - '.nojekyll'
+      - 'CNAME'
   workflow_dispatch:
 
 permissions:
@@ -16,6 +36,10 @@ jobs:
   build:
     name: Build & test
     runs-on: ubuntu-latest
+    # Defense-in-depth: even if paths-ignore missed something, refuse to run
+    # when the commit was made by the bot itself. Manual workflow_dispatch
+    # triggers always pass this check (actor is the human who clicked Run).
+    if: github.actor != 'github-actions[bot]'
     steps:
       # Source is always read from main, even though the trigger fires on prod.
       # This way prod's contents (which become the build artifacts after each
