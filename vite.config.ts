@@ -9,6 +9,10 @@ import path from 'node:path';
 // Override at build time with: VITE_BASE_PATH="/" npm run build
 const BASE_PATH = process.env.VITE_BASE_PATH ?? '/portami/';
 
+// Backend API base URL. Empty in dev (uses MSW mocks).
+// In production: VITE_API_BASE="https://your-server.deno.dev"
+const API_BASE = process.env.VITE_API_BASE ?? '';
+
 // Copy dist/index.html to dist/404.html after the build so GitHub Pages
 // can serve it as a fallback for any unknown path. The SPA boots from
 // 404.html and BrowserRouter reads the actual pathname to route correctly.

@@ -25,10 +25,10 @@ import { clientsClaim } from 'workbox-core';
 declare const self: ServiceWorkerGlobalScope;
 
 // Increment whenever the SW logic changes in a way that requires all
-// clients to drop their old runtime caches. Bumped to v12: new 'Board'
-// flow (GPS -> route suggestions -> confirm) + live bus tracking on
-// the map + per-stop ETA estimation with 'estimation' disclaimer.
-const CACHE_VERSION = 12;
+// clients to drop their old runtime caches. Bumped to v13: point the
+// app at the Deno Deploy server (VITE_API_BASE), add health polling,
+// server status badge, and ServerOfflineError handling.
+const CACHE_VERSION = 13;
 
 self.skipWaiting();
 clientsClaim();

@@ -7,6 +7,7 @@ import { useIdentityStore } from '@/state/identity';
 import { useTripStore } from '@/state/trip';
 import { ChevronRight, Map, Record as RecordIcon, AlertTriangle, Navigation, Plus, Bus } from '@/components/icons';
 import { formatDistance, polylineLength } from '@/geo/distance';
+import { ServerStatusBadge } from '@/components/ServerStatusBadge';
 
 export default function HomePage() {
   const { t, i18n } = useTranslation();
@@ -46,6 +47,10 @@ export default function HomePage() {
       </header>
 
       <p className="text-muted mb-4">{t('app.tagline')}</p>
+
+      <div className="mb-3">
+        <ServerStatusBadge />
+      </div>
 
       {/* Active trip callout */}
       <section className="card mb-4" style={{ background: activeTrip ? 'var(--brand-50)' : 'transparent' }}>

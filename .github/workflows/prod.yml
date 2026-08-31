@@ -64,6 +64,9 @@ jobs:
       - name: Build (production)
         env:
           VITE_BASE_PATH: /portami/
+          # Deno Deploy server URL — the app polls /health and routes
+          # API calls here. Empty → app falls back to MSW mocks.
+          VITE_API_BASE: https://portami-server-myqe6vtk46ha.gabrielcatdev.deno.net
         run: npm run build
 
       # The build regenerates dist/sw.js with the precache manifest injected.
