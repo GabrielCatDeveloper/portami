@@ -88,6 +88,13 @@ export async function apiFetch<T = unknown>(
     headers['X-Portami-Sig'] = sig;
   }
 
+  // All API routes in both the real server and the MSW mocks are
+  // mounted under the `/api` prefix. Centralising the prefix here
+  // means callers can keep using paths like `/routes/nearby` without
+  // caring whether they hit a prefix-less mock layer.
+  const API_PREFIX = '/api';
+  const url = path.startsWith(API_PREFIX) ? `${BASE}${path}` : `${BASE}${API_PREFIX}${path}`;
+
   let attempt = 0;
   let lastErr: unknown = null;
   while (attempt <= retries) {
@@ -97,7 +104,7 @@ export async function apiFetch<T = unknown>(
       await new Promise((r) => setTimeout(r, bo || 300 * 2 ** attempt));
     }
     try {
-      const res = await fetch(`${BASE}${path}`, {
+      const res = await fetch(url, {
         method,
         headers,
         body: payload !== undefined ? JSON.stringify(payload) : undefined,
