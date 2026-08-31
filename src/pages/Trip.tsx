@@ -82,12 +82,13 @@ export default function TripPage() {
     enabled: !!activeTrip,
   });
 
-  // Trip sharing via WebRTC
+  // Trip sharing via WebRTC. plannedRoute is read from the trip store
+  // automatically (set by /journey → start trip) so the friend knows
+  // where you're going even if the GPS drops out.
   const sync = useSyncStore();
   const shareBridge = useTripShareBridge({
     routeId: route?.id,
     routeName: route?.name,
-    plannedRoute: null, // could be passed from a planned journey A→B
     lastSample: lastSample ? { lat: lastSample.lat, lng: lastSample.lng, speed: lastSample.speed, ts: lastSample.ts } : null,
   });
   const [sharing, setSharing] = useState(false);

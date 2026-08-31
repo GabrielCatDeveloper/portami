@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Route, GPSSample, Trip } from '@/api/types';
+import type { Route, GPSSample, Trip, Journey } from '@/api/types';
 import { apiFetch } from '@/api/client';
 import { randomUUID } from '@/crypto';
 
@@ -11,7 +11,11 @@ type TripState = {
   lastSample: GPSSample | null;
   phase: TripPhase;
   startedAt: number | null;
-  startTrip(route: Route): Promise<void>;
+  /** Optional pre-planned route (A→B) attached when starting the trip.
+   *  Used by useTripShareBridge so the paired device knows where you're
+   *  going even if GPS drops out. */
+  plannedRoute: Journey | null;
+  startTrip(route: Route, opts?: { plannedRoute?: Journey | null }): Promise<void>;
   endTrip(reason: 'manual' | 'heuristic' | 'arrival'): Promise<void>;
   setLastSample(s: GPSSample): void;
   reset(): void;
@@ -23,9 +27,10 @@ export const useTripStore = create<TripState>((set, get) => ({
   lastSample: null,
   phase: 'idle',
   startedAt: null,
+  plannedRoute: null,
 
-  async startTrip(route) {
-    set({ phase: 'starting' });
+  async startTrip(route, opts) {
+    set({ phase: 'starting', plannedRoute: opts?.plannedRoute ?? null });
     const { tripId } = await apiFetch<{ tripId: string }>('/trips/start', {
       method: 'POST',
       body: { routeId: route.id, ts: Date.now() },
@@ -56,6 +61,7 @@ export const useTripStore = create<TripState>((set, get) => ({
       lastSample: null,
       phase: 'ended',
       startedAt: null,
+      plannedRoute: null,
     });
   },
 
@@ -69,6 +75,6 @@ export const useTripStore = create<TripState>((set, get) => ({
   },
 
   reset() {
-    set({ activeTrip: null, route: null, lastSample: null, phase: 'idle', startedAt: null });
+    set({ activeTrip: null, route: null, lastSample: null, phase: 'idle', startedAt: null, plannedRoute: null });
   },
 }));

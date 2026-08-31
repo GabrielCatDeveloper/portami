@@ -8,6 +8,7 @@ import { useEffect } from 'react';
 import { useSyncStore } from './index';
 import { useTripShareStore } from '@/state/tripShare';
 import { useIdentityStore } from '@/state/identity';
+import { useTripStore } from '@/state/trip';
 import { nearestStop } from '@/geo/distance';
 import { notify } from '@/notify';
 import type { SyncMessage, Journey } from '@/api/types';
@@ -23,7 +24,8 @@ export function useTripShareBridge(opts: {
   /** Last GPS sample from the trip. */
   lastSample: { lat: number; lng: number; speed?: number; ts: number } | null;
 }) {
-  const { routeId, routeName, plannedRoute, lastSample } = opts;
+  const { routeId, routeName, lastSample } = opts;
+  const plannedRoute = opts.plannedRoute ?? useTripStore.getState().plannedRoute;
   const sync = useSyncStore();
   const identity = useIdentityStore();
   const outgoing = useTripShareStore((s) => s.outgoing);
@@ -105,21 +107,22 @@ export function useTripShareBridge(opts: {
   // Imperative API: start/stop sharing
   return {
     /** Begin sharing the current trip with paired devices. Idempotent. */
-    startSharing: (plannedRoute?: Journey | null) => {
+    startSharing: (overrideRoute?: Journey | null) => {
       if (!identity.anonId) return;
+      const finalRoute = overrideRoute ?? plannedRoute;
       setOutgoing({
         fromAnonId: identity.anonId,
         fromAlias: 'Yo',
         routeId,
         routeName,
-        plannedRoute: plannedRoute ? {
-          steps: plannedRoute.steps.map((s) => ({
+        plannedRoute: finalRoute ? {
+          steps: finalRoute.steps.map((s) => ({
             kind: s.kind,
             label: s.kind === 'ride'
               ? `${s.routeName}: ${s.fromStopName} → ${s.toStopName}`
               : `Caminar ${Math.round(s.distanceM)} m`,
           })),
-          totalDurationS: plannedRoute.totalDurationS,
+          totalDurationS: finalRoute.totalDurationS,
         } : undefined,
         startedAt: Date.now(),
       });
@@ -130,14 +133,14 @@ export function useTripShareBridge(opts: {
           fromAlias: 'Yo',
           routeId,
           routeName,
-          plannedRoute: plannedRoute ? {
-            steps: plannedRoute.steps.map((s) => ({
+          plannedRoute: finalRoute ? {
+            steps: finalRoute.steps.map((s) => ({
               kind: s.kind,
               label: s.kind === 'ride'
                 ? `${s.routeName}: ${s.fromStopName} → ${s.toStopName}`
                 : `Caminar ${Math.round(s.distanceM)} m`,
             })),
-            totalDurationS: plannedRoute.totalDurationS,
+            totalDurationS: finalRoute.totalDurationS,
           } : undefined,
           startedAt: Date.now(),
         } as SyncMessage);
