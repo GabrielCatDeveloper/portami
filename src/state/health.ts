@@ -11,10 +11,17 @@ import {
 } from '@/api/health';
 
 export function useServerHealth(): HealthSnapshot {
+  // CRITICAL: pass `subscribeHealth` and `getHealthSnapshot` directly
+  // (module-level references). Wrapping them in arrow functions
+  // creates a fresh function on every render, which makes React's
+  // internal useEffect re-subscribe on every render — and since
+  // subscribeHealth immediately calls back with `snapshot()`, that
+  // schedules another render, producing an infinite loop
+  // ("Maximum update depth exceeded" / React error #185).
   return useSyncExternalStore(
-    (cb) => subscribeHealth(cb),
-    () => getHealthSnapshot(),
-    () => getHealthSnapshot(),
+    subscribeHealth,
+    getHealthSnapshot,
+    getHealthSnapshot,
   );
 }
 

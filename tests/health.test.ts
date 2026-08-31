@@ -26,4 +26,16 @@ describe('server health store', () => {
     unsub();
     expect(seen.length).toBeGreaterThan(0);
   });
+
+  // Regression test for the React error #185 ("Maximum update depth
+  // exceeded") bug: getHealthSnapshot must return a stable reference
+  // when the underlying state hasn't changed, otherwise
+  // useSyncExternalStore triggers an infinite re-render loop.
+  it('getHealthSnapshot returns a stable reference across calls when state is unchanged', () => {
+    const a = getHealthSnapshot();
+    const b = getHealthSnapshot();
+    const c = getHealthSnapshot();
+    expect(a).toBe(b);
+    expect(b).toBe(c);
+  });
 });

@@ -57,13 +57,27 @@ function notify() {
   for (const l of listeners) l(snapshot());
 }
 
+// Memoized snapshot — `useSyncExternalStore` compares results with
+// Object.is, so returning a fresh object literal every call would
+// make React think the data changed on every render and trigger an
+// infinite loop. We cache by `state` identity: `state` is replaced
+// (immutable update) on every poll, so the cache invalidates at the
+// right moment without us having to diff each field.
+let cachedSnapshot: HealthSnapshot | null = null;
+let cachedForState: State | null = null;
+
 function snapshot(): HealthSnapshot {
+  if (cachedSnapshot !== null && cachedForState === state) {
+    return cachedSnapshot;
+  }
   const { raw, lastSeenUp, lastCheck, attempts, manualOverride, routes, tripsActive } = state;
   let status: ServerStatus = raw;
   if (!manualOverride && raw === 'stopped' && lastSeenUp !== null && Date.now() - lastSeenUp > OFFLINE_AFTER_MS) {
     status = 'offline';
   }
-  return { status, lastSeenUp, lastCheck, attempts, manualOverride, routes, tripsActive };
+  cachedSnapshot = { status, lastSeenUp, lastCheck, attempts, manualOverride, routes, tripsActive };
+  cachedForState = state;
+  return cachedSnapshot;
 }
 
 export function getHealthSnapshot(): HealthSnapshot {
