@@ -170,6 +170,15 @@ export const Bell = (p: IconProps) => (
   </svg>
 );
 
+export const BellOff = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M10.268 21a2 2 0 0 0 3.464 0" />
+    <path d="M21.732 15.5A6 6 0 0 0 18 8c0-.845-.097-1.667-.282-2.456" />
+    <path d="M6 8a6 6 0 0 0-3.732 7.5" />
+    <path d="M2 2l20 20" />
+  </svg>
+);
+
 export const QR = (p: IconProps) => (
   <svg {...base(p)}>
     <rect x="3" y="3" width="7" height="7" rx="1" />

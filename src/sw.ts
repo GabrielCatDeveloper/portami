@@ -25,12 +25,12 @@ import { clientsClaim } from 'workbox-core';
 declare const self: ServiceWorkerGlobalScope;
 
 // Increment whenever the SW logic changes in a way that requires all
-// clients to drop their old runtime caches. Bumped to v14: bus vs train
-// differentiation (vehicle icons + color-coded polylines), Route type
-// gains Schedule + Incident types, Record page has a vehicle selector
-// and schedule editor, Explore filters by vehicle + active-now + shows
-// incidents, RouteDetail has a live incidents panel with a report form.
-const CACHE_VERSION = 14;
+// clients to drop their old runtime caches. Bumped to v15: per-stop
+// proximity alerts. User configures alerts per route in the Trip page;
+// when the bus is within the trigger distance the app fires a strong
+// alarm (vibration + sound + sticky requireInteraction notification).
+// Alerts are local (IndexedDB), not synced to the server.
+const CACHE_VERSION = 15;
 
 self.skipWaiting();
 clientsClaim();

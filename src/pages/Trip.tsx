@@ -5,6 +5,9 @@ import { geoWatcher } from '@/geo/watcher';
 import { TripDetector, type DetectorEvent } from '@/geo/tripDetector';
 import { LeafletMap } from '@/components/LeafletMap';
 import { haversine, nearestStop, formatDistance } from '@/geo/distance';
+import { useStopAlertWatcher } from '@/geo/useStopAlertWatcher';
+import { resetTriggered } from '@/storage/stopAlerts';
+import { StopAlertsCard } from '@/components/StopAlertsCard';
 import { Stop, AlertTriangle, Info } from '@/components/icons';
 
 export default function TripPage() {
@@ -61,6 +64,21 @@ export default function TripPage() {
       geoWatcher.stop();
     };
   }, [activeTrip?.id]);
+
+  // Reset all alerts' "triggered" flag when a new trip starts so that
+  // the same alert can fire again on the next ride.
+  useEffect(() => {
+    if (route) void resetTriggered(route.id);
+    // intentional: only on route change (i.e. start of new trip)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTrip?.id]);
+
+  // Watch for stop-alert triggers
+  const { alerts: stopAlerts, reload: reloadAlerts } = useStopAlertWatcher({
+    route,
+    sample: lastSample,
+    enabled: !!activeTrip,
+  });
 
   if (!activeTrip || !route) {
     return (
@@ -172,6 +190,12 @@ export default function TripPage() {
             <span>{t('trip.endedAuto')}</span>
           </div>
         )}
+
+        <StopAlertsCard
+          route={route}
+          alerts={stopAlerts}
+          onChange={reloadAlerts}
+        />
 
         <button
           type="button"
