@@ -93,10 +93,17 @@ jobs:
           ICON_SRC=$(node -e "console.log(JSON.parse(require('fs').readFileSync('dist/manifest.webmanifest','utf8')).icons[0].src)")
           echo "start_url: $START_URL"
           echo "icon src: $ICON_SRC"
-          test "$START_URL" = "/portami/" || (echo "::error::manifest.start_url is not /portami/" && exit 1)
+          # Accept both the root-path deploy ('/') and the legacy subpath
+          # ('/portami/') so we don't have to edit this check every time we
+          # move the app between domains. The base path is determined by
+          # VITE_BASE_PATH at build time — see .github/workflows/prod.yml.
+          case "$START_URL" in
+            /|/portami/) ;;
+            *) echo "::error::manifest.start_url must be '/' or '/portami/' (got '$START_URL')" && exit 1 ;;
+          esac
           case "$ICON_SRC" in
-            /portami/icons/*) ;;
-            *) echo "::error::manifest icon src must start with /portami/icons/" && exit 1 ;;
+            /icons/*|/portami/icons/*) ;;
+            *) echo "::error::manifest icon src must start with /icons/ or /portami/icons/ (got '$ICON_SRC')" && exit 1 ;;
           esac
 
       # Publish the built dist/ into the prod branch itself, replacing its

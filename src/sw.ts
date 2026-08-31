@@ -25,12 +25,12 @@ import { clientsClaim } from 'workbox-core';
 declare const self: ServiceWorkerGlobalScope;
 
 // Increment whenever the SW logic changes in a way that requires all
-// clients to drop their old runtime caches. Bumped to v24: re-point
-// the production build to the new Deno Deploy project
-// (portami-server-6mv9bn5jhvvb) which has the CORS middleware
-// active, and switch VITE_BASE_PATH from /portami/ to / so the app
-// can be served at https://gabrielcatdeveloper.github.io/ root.
-const CACHE_VERSION = 24;
+// clients to drop their old runtime caches. Bumped to v25: previous
+// bump to v24 produced a build that failed the CI manifest sanity
+// check ('manifest.start_url is not /portami/'); the workflow's
+// hardcoded check has now been relaxed to accept '/' as well as
+// '/portami/'. This bump forces the build to re-run.
+const CACHE_VERSION = 25;
 
 self.skipWaiting();
 clientsClaim();
