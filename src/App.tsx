@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useIdentityStore } from '@/state/identity';
 import { Home as HomeIcon, Map, Record as RecordIcon, Settings as SettingsIcon } from '@/components/icons';
 import { TripBanner } from '@/components/TripBanner';
+import { useStorageJanitor } from '@/storage/useStorageJanitor';
 
 import HomePage from '@/pages/Home';
 import ExplorePage from '@/pages/Explore';
@@ -15,6 +16,8 @@ import SyncPage from '@/pages/Sync';
 import BoardPage from '@/pages/Board';
 import JourneyPage from '@/pages/Journey';
 import FollowingPage from '@/pages/Following';
+import ConnectPage from '@/pages/Connect';
+import ConnectBackPage from '@/pages/ConnectBack';
 
 export default function App() {
   const { t } = useTranslation();
@@ -26,6 +29,35 @@ export default function App() {
   useEffect(() => {
     init().catch((e) => setBootError(String(e)));
   }, [init]);
+
+  // TTL cleanup for trip-share stores (Hito 7 — Fase 2). Runs on
+  // mount and every 24 h. Safe to live alongside other effects.
+  useStorageJanitor();
+
+  // Listen for NAVIGATE messages from the Service Worker (triggered
+  // when the user clicks a notification or its "view" action).
+  // We only handle the absolute-URL case by stripping the origin and
+  // base path so React Router gets a clean pathname.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+    const handler = (event: MessageEvent) => {
+      const data = event.data as { type?: string; payload?: { url?: string } } | undefined;
+      if (!data || data.type !== 'NAVIGATE' || !data.payload?.url) return;
+      try {
+        const url = new URL(data.payload.url, window.location.href);
+        const base = new URL(import.meta.env.BASE_PATH, window.location.href);
+        // Strip the base prefix so navigate receives "/following" not "/portami/following".
+        const target = url.pathname.startsWith(base.pathname)
+          ? url.pathname.slice(base.pathname.length - 1) || '/'
+          : url.pathname + url.search + url.hash;
+        navigate(target);
+      } catch {
+        // ignore malformed URLs
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', handler);
+    return () => navigator.serviceWorker.removeEventListener('message', handler);
+  }, [navigate]);
 
   if (bootError) {
     return (
@@ -62,6 +94,9 @@ export default function App() {
               for a permanent slot in the bottom nav). */}
           <Route path="/sync" element={<SyncPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          {/* Invite deeplink routes (Hito 7 — Fase 6). */}
+          <Route path="/connect" element={<ConnectPage />} />
+          <Route path="/connect-back" element={<ConnectBackPage />} />
         </Routes>
       </main>
 

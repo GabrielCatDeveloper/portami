@@ -44,6 +44,37 @@
     "liveSharing": "Sharing location anonymously",
     "liveSharingOff": "Not sharing"
   },
+  "invite": {
+    "title": "Invite {{name}} via another app",
+    "subtitle": "Generate a link you can send via WhatsApp, Telegram or SMS. When they open it in portami, they'll start receiving your trip.",
+    "generating": "Generating link…",
+    "copy": "Copy link",
+    "share": "Share",
+    "shareVia": "Send via",
+    "whatsapp": "WhatsApp",
+    "telegram": "Telegram",
+    "sms": "SMS",
+    "copied": "Copied!",
+    "cancel": "Cancel",
+    "error": "Could not generate the link",
+    "notSupported": "Your browser doesn't support WebRTC; we can't create the link."
+  },
+  "connect": {
+    "title": "Receive invitation",
+    "subtitle": "{{alias}} wants to share their trip with you.",
+    "generating": "Generating answer…",
+    "sendBack": "Send this answer back to {{alias}} via the same app",
+    "answerReady": "Your answer is ready",
+    "answerCopyHint": "Copy this link and paste it in your chat with {{alias}}",
+    "sendBackVia": "Send answer via",
+    "waitingTitle": "Waiting for {{alias}} to respond",
+    "waitingSubtitle": "When they open the return link in portami, the connection completes automatically.",
+    "invalidLink": "This invitation link is invalid",
+    "notForYou": "This answer is not for you",
+    "processing": "Processing answer…",
+    "success": "Connected! You'll receive the trip live.",
+    "error": "Could not complete the connection"
+  },
   "routes": {
     "list": "Routes",
     "nearYou": "Near you",

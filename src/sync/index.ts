@@ -1,6 +1,10 @@
 // ============================================================
-// Simplified pairing + sync orchestrator
-// Manual SDP copy-paste; no signaling server.
+// Pairing + sync orchestrator (multi-peer).
+//
+// Manual SDP copy-paste for initial pairing; no signaling server.
+// After pairing, the connection stays alive and is tracked in a
+// Map keyed by deviceId, so the same store can hold N simultaneous
+// peer connections (one per paired device).
 // ============================================================
 import { create } from 'zustand';
 import { Peer } from './peer';
@@ -8,8 +12,6 @@ import { computePairCode } from './pairCode';
 import { encryptIdentityForPeer, decryptIdentityFromPeer } from './identityTransfer';
 import {
   base64UrlToBytes,
-  bytesToBase64Url,
-  importPrivateKeyJwk,
 } from '@/crypto';
 import { useDeviceKeyStore, useIdentityStore } from '@/state/identity';
 import { getDB } from '@/storage/db';
@@ -18,6 +20,8 @@ import type {
   Route,
   RouteEditProposal,
   PairedDevice,
+  PeerInfo,
+  PeerStatus,
 } from '@/api/types';
 
 export type SyncRole = 'idle' | 'initiator' | 'joiner';
@@ -41,6 +45,12 @@ type SyncState = {
   remotePubKey: string | null;
   progress: string;
 
+  /** deviceId of the peer that's currently in the pairing flow (if any). */
+  pairingDeviceId: string | null;
+
+  /** All known peer connections, keyed by deviceId === pubKey. */
+  peers: Record<string, PeerInfo>;
+
   // Initiator
   createOfferAndWait(): Promise<string>;
   finishPairingAsInitiator(answer: string): Promise<void>;
@@ -53,10 +63,43 @@ type SyncState = {
   loadPairedDevices(): Promise<PairedDevice[]>;
   revokeDevice(deviceId: string): Promise<void>;
 
-  /** Send an arbitrary message to the paired peer (if connected). */
+  /**
+   * Broadcast a message to every connected peer.
+   * No-op for peers in any non-`connected` state.
+   */
   send(msg: SyncMessage): void;
-  /** Subscribe to all messages received from the paired peer. Returns an unsubscribe. */
-  subscribe(fn: (msg: SyncMessage) => void): () => void;
+  /**
+   * Send a message to one specific peer (by deviceId).
+   * No-op if the peer is not connected.
+   */
+  sendTo(deviceId: string, msg: SyncMessage): void;
+  /**
+   * Subscribe to messages received from ALL peers.
+   * Returns an unsubscribe function.
+   */
+  subscribe(fn: (msg: SyncMessage, fromDeviceId: string) => void): () => void;
+  /**
+   * Subscribe to messages received from a specific peer.
+   * Returns an unsubscribe function.
+   */
+  subscribeToDevice(
+    deviceId: string,
+    fn: (msg: SyncMessage) => void,
+  ): () => void;
+  /**
+   * Subscribe to peer status transitions. Fires whenever a peer's
+   * status changes (e.g. disconnected → connected, or any → error).
+   * Returns an unsubscribe function.
+   */
+  subscribePeerStatus(
+    fn: (deviceId: string, status: PeerStatus) => void,
+  ): () => void;
+  /** Get the current status of one peer. */
+  getPeerStatus(deviceId: string): PeerStatus;
+  /** List deviceIds of peers currently in `connected` state. */
+  listConnectedPeers(): string[];
+  /** List deviceIds of peers in any state known to the store. */
+  listAllPeers(): string[];
 };
 
 async function suggestAlias(): Promise<string> {
@@ -72,36 +115,122 @@ async function suggestAlias(): Promise<string> {
   return 'Dispositivo';
 }
 
-export const useSyncStore = create<SyncState>((set, get) => {
-  let peer: Peer | null = null;
-  /** Listeners for arbitrary post-pairing messages (e.g. trip-share-*). */
-  const extraSubs: Set<(msg: SyncMessage) => void> = new Set();
+/**
+ * Helper used by the pairing flow + the post-pairing message dispatcher
+ * to add a new peer to the store and keep its PeerInfo in sync.
+ */
+type PeerEntry = {
+  peer: Peer;
+  info: PeerInfo;
+  /** Per-peer subscribers (post-pairing). */
+  subs: Set<(msg: SyncMessage) => void>;
+};
 
-  async function bootstrapPeer(role: 'initiator' | 'joiner'): Promise<Peer> {
-    if (peer) peer.close();
+export const useSyncStore = create<SyncState>((set, get) => {
+  /** deviceId → entry */
+  const peerEntries = new Map<string, PeerEntry>();
+  /** Global subscribers — receive messages from every peer. */
+  const globalSubs: Set<(msg: SyncMessage, fromDeviceId: string) => void> = new Set();
+  /** Subscribers for peer-status transitions. */
+  const statusSubs: Set<(deviceId: string, status: PeerStatus) => void> = new Set();
+  /** deviceId currently in the pairing flow (initiator or joiner). */
+  let pairingInProgress: string | null = null;
+
+  function updatePeerInfo(deviceId: string, patch: Partial<PeerInfo>) {
+    const entry = peerEntries.get(deviceId);
+    if (!entry) return;
+    const prevStatus = entry.info.status;
+    entry.info = { ...entry.info, ...patch };
+    set((state) => ({
+      peers: { ...state.peers, [deviceId]: entry.info },
+    }));
+    // Emit status transition only when the status actually changes,
+    // so subscribers don't get spurious fires on every other patch.
+    if (patch.status && patch.status !== prevStatus) {
+      for (const fn of statusSubs) {
+        try {
+          fn(deviceId, entry.info.status);
+        } catch {
+          /* swallow */
+        }
+      }
+    }
+  }
+
+  async function bootstrapPeer(
+    role: 'initiator' | 'joiner',
+    deviceId: string,
+    pubKey: string,
+    alias: string,
+  ): Promise<Peer> {
     const p = new Peer(role === 'initiator');
-    peer = p;
+
+    const entry: PeerEntry = {
+      peer: p,
+      info: {
+        deviceId,
+        pubKey,
+        alias,
+        status: 'connecting',
+      },
+      subs: new Set(),
+    };
+    peerEntries.set(deviceId, entry);
+    set((state) => ({ peers: { ...state.peers, [deviceId]: entry.info } }));
 
     const deviceKey = await useDeviceKeyStore.getState().ensure();
-    const alias = await suggestAlias();
-    set({ myAlias: alias });
+    const myAlias = await suggestAlias();
+    set({ myAlias });
 
     p.on('open', () => {
+      updatePeerInfo(deviceId, { status: 'connected', lastConnectedAt: Date.now() });
       p.send({
         kind: 'hello',
         deviceId: deviceKey.deviceId,
         pubKey: deviceKey.pubKey,
-        alias,
+        alias: myAlias,
         appVersion: '0.1.0',
       });
     });
 
     p.on('message', async (msg: SyncMessage) => {
-      await handleMessage(p, msg, get, set, role);
-      // Fan out to extra subscribers (e.g. trip-share receiver)
-      for (const fn of extraSubs) {
-        try { fn(msg); } catch { /* swallow */ }
+      await handleMessage(p, msg, get, set, role, deviceId, entry);
+      // Fan out to per-peer subscribers
+      for (const fn of entry.subs) {
+        try {
+          fn(msg);
+        } catch {
+          /* swallow */
+        }
       }
+      // Fan out to global subscribers
+      for (const fn of globalSubs) {
+        try {
+          fn(msg, deviceId);
+        } catch {
+          /* swallow */
+        }
+      }
+    });
+
+    p.on('close', () => {
+      const cur = peerEntries.get(deviceId);
+      if (!cur) return;
+      // Don't downgrade revoked peers
+      if (cur.info.status === 'revoked') return;
+      // Don't overwrite a successful pairing state with disconnected
+      if (cur.info.status === 'connected') {
+        updatePeerInfo(deviceId, { status: 'reconnecting' });
+      } else {
+        updatePeerInfo(deviceId, { status: 'disconnected' });
+      }
+    });
+
+    p.on('error', (e: unknown) => {
+      updatePeerInfo(deviceId, {
+        status: 'error',
+        lastError: e instanceof Error ? e.message : String(e),
+      });
     });
 
     return p;
@@ -113,11 +242,15 @@ export const useSyncStore = create<SyncState>((set, get) => {
     get: () => SyncState,
     set: (partial: Partial<SyncState>) => void,
     role: 'initiator' | 'joiner',
+    deviceId: string,
+    entry: PeerEntry,
   ) {
     const state = get();
 
     if (msg.kind === 'hello') {
       set({ peerAlias: msg.alias, remotePubKey: msg.pubKey });
+      // Persist the alias on the PeerInfo for UI consistency.
+      updatePeerInfo(deviceId, { alias: msg.alias });
       const myDeviceKey = await useDeviceKeyStore.getState().ensure();
       const code = await computePairCode(myDeviceKey.pubKey, msg.pubKey);
       set({ pairCode: code, phase: 'verifying' });
@@ -128,6 +261,7 @@ export const useSyncStore = create<SyncState>((set, get) => {
     if (msg.kind === 'verify') {
       if (msg.pairCode !== state.pairCode) {
         set({ phase: 'error', error: 'pair codes do not match' });
+        updatePeerInfo(deviceId, { status: 'error', lastError: 'pair codes do not match' });
         p.close();
         return;
       }
@@ -136,7 +270,6 @@ export const useSyncStore = create<SyncState>((set, get) => {
       const idStore = useIdentityStore.getState();
 
       if (idStore.identity) {
-        // We have an identity → send it to the joiner (or to anyone for re-sync)
         const peerPub = state.remotePubKey;
         if (!peerPub) return;
         const payload = await encryptIdentityForPeer(
@@ -151,49 +284,43 @@ export const useSyncStore = create<SyncState>((set, get) => {
           ephemeralPubKey: payload.ephemeralPubKey,
         });
       }
-      // If we don't have an identity, just wait for the transfer
     }
 
     if (msg.kind === 'identity-transfer') {
       const jwk = await decryptIdentityFromPeer(msg);
-      // Find peer device pubkey from previous hello
       const peerPub = state.remotePubKey;
       if (!peerPub) return;
-      // Persist
       const idStore = useIdentityStore.getState();
-      // We need a pubkey to import; use the device pubkey as a placeholder, but better:
-      // The transfer itself should include the user pubkey. For MVP, we trust the encrypted payload.
-      // Let's also export identity along with jwk in payload. For simplicity, request user pub from peer:
       p.send({ kind: 'sync-init', lastSyncTs: 0, entityHashes: {} });
-      // Wait for sync data
       set({ phase: 'syncing', progress: 'Identidad recibida. Sincronizando datos…' });
       void jwk;
     }
 
     if (msg.kind === 'sync-init') {
-      // Push our entities
       set({ phase: 'syncing', progress: 'Enviando datos…' });
       await pushOwnedEntities(p);
-      // And then request what the peer has
       set({ progress: 'Recibiendo datos…' });
     }
 
     if (msg.kind === 'sync-entities') {
       await applyIncomingEntities(msg.entities);
       set({ phase: 'success', progress: 'Sincronización completa' });
-      // Save paired device
       const remoteDevice = (await get()).remotePubKey;
       const remoteAlias = (await get()).peerAlias;
       if (remoteDevice && remoteAlias) {
         await savePairedDevice({
-          deviceId: 'pending', // we don't get the deviceId in protocol; use a derived key
+          deviceId: 'pending',
           pubKey: remoteDevice,
           alias: remoteAlias,
           pairedAt: Date.now(),
           lastSeenAt: Date.now(),
         });
       }
-      p.close();
+      // Connection stays alive — do NOT close.
+      // (Previously we called p.close() here, which forced the user to
+      // re-pair every time. Now the peer stays in `connected` state.)
+      pairingInProgress = null;
+      set({ pairingDeviceId: null });
     }
   }
 
@@ -207,26 +334,48 @@ export const useSyncStore = create<SyncState>((set, get) => {
     peerAlias: null,
     remotePubKey: null,
     progress: '',
+    pairingDeviceId: null,
+    peers: {},
 
     async createOfferAndWait() {
       set({ role: 'initiator', phase: 'awaiting-peer', error: null });
-      const p = await bootstrapPeer('initiator');
+      // The new peer's id is computed from its pubKey, but we don't know
+      // it until `hello` arrives. Use a temporary id; bootstrapPeer will
+      // rewrite it after the handshake (the pairing flow uses myOffer
+      // and the pair code for matching, not the deviceId).
+      const deviceKey = await useDeviceKeyStore.getState().ensure();
+      const tempId = `pending-${Date.now()}`;
+      pairingInProgress = tempId;
+      set({ pairingDeviceId: tempId });
+      const alias = await suggestAlias();
+      const p = await bootstrapPeer('initiator', tempId, deviceKey.pubKey, alias);
       const offer = await p.createOffer();
       set({ myOffer: offer });
       return offer;
     },
 
     async finishPairingAsInitiator(answer: string) {
-      if (!peer) {
+      const id = pairingInProgress;
+      if (!id) {
+        set({ phase: 'error', error: 'No active pairing' });
+        return;
+      }
+      const entry = peerEntries.get(id);
+      if (!entry) {
         set({ phase: 'error', error: 'No active peer' });
         return;
       }
-      await peer.acceptAnswer(answer);
+      await entry.peer.acceptAnswer(answer);
     },
 
     async joinWithOffer(offer: string) {
       set({ role: 'joiner', phase: 'awaiting-peer', error: null });
-      const p = await bootstrapPeer('joiner');
+      const deviceKey = await useDeviceKeyStore.getState().ensure();
+      const tempId = `pending-${Date.now()}`;
+      pairingInProgress = tempId;
+      set({ pairingDeviceId: tempId });
+      const alias = await suggestAlias();
+      const p = await bootstrapPeer('joiner', tempId, deviceKey.pubKey, alias);
       const answer = await p.createAnswer(offer);
       return answer;
     },
@@ -236,9 +385,16 @@ export const useSyncStore = create<SyncState>((set, get) => {
     },
 
     reset() {
-      peer?.close();
-      peer = null;
-      extraSubs.clear();
+      for (const [, entry] of peerEntries) {
+        try {
+          entry.peer.close();
+        } catch {
+          /* swallow */
+        }
+      }
+      peerEntries.clear();
+      globalSubs.clear();
+      pairingInProgress = null;
       set({
         role: 'idle',
         phase: 'idle',
@@ -248,6 +404,8 @@ export const useSyncStore = create<SyncState>((set, get) => {
         peerAlias: null,
         remotePubKey: null,
         progress: '',
+        pairingDeviceId: null,
+        peers: {},
       });
     },
 
@@ -257,17 +415,89 @@ export const useSyncStore = create<SyncState>((set, get) => {
     },
 
     async revokeDevice(deviceId) {
+      const entry = peerEntries.get(deviceId);
+      if (entry) {
+        try {
+          entry.peer.close();
+        } catch {
+          /* swallow */
+        }
+        updatePeerInfo(deviceId, { status: 'revoked' });
+      } else {
+        // No live Peer object, but we still need to update the
+        // observable state if the peer was previously known.
+        const cur = get().peers[deviceId];
+        if (cur) {
+          set((state) => ({
+            peers: { ...state.peers, [deviceId]: { ...cur, status: 'revoked' } },
+          }));
+        }
+      }
       const db = await getDB();
       await db.delete('pairedDevices', deviceId);
     },
 
-    send(msg: SyncMessage) {
-      peer?.send(msg);
+    send(msg) {
+      for (const [id, entry] of peerEntries) {
+        if (entry.info.status === 'connected') {
+          try {
+            entry.peer.send(msg);
+          } catch {
+            /* swallow */
+          }
+        }
+        // Suppress unused warning for `id` in some build configs
+        void id;
+      }
+    },
+
+    sendTo(deviceId, msg) {
+      const entry = peerEntries.get(deviceId);
+      if (!entry || entry.info.status !== 'connected') return;
+      try {
+        entry.peer.send(msg);
+      } catch {
+        /* swallow */
+      }
     },
 
     subscribe(fn) {
-      extraSubs.add(fn);
-      return () => extraSubs.delete(fn);
+      globalSubs.add(fn);
+      return () => {
+        globalSubs.delete(fn);
+      };
+    },
+
+    subscribeToDevice(deviceId, fn) {
+      const entry = peerEntries.get(deviceId);
+      if (!entry) {
+        // No-op; caller should check getPeerStatus first.
+        return () => {};
+      }
+      entry.subs.add(fn);
+      return () => {
+        entry.subs.delete(fn);
+      };
+    },
+
+    subscribePeerStatus(fn) {
+      statusSubs.add(fn);
+      return () => {
+        statusSubs.delete(fn);
+      };
+    },
+
+    getPeerStatus(deviceId) {
+      return get().peers[deviceId]?.status ?? 'disconnected';
+    },
+
+    listConnectedPeers() {
+      const peers = get().peers;
+      return Object.keys(peers).filter((id) => peers[id].status === 'connected');
+    },
+
+    listAllPeers() {
+      return Object.keys(get().peers);
     },
   };
 });
@@ -322,4 +552,15 @@ async function savePairedDevice(d: PairedDevice) {
   const db = await getDB();
   // Use pubKey as the stable key since we don't have a reliable deviceId
   await db.put('pairedDevices', { ...d, deviceId: d.pubKey }, d.pubKey);
+}
+
+// ============================================================
+// Re-binding helper for known paired devices (used after pairing
+// completes — currently a no-op because the peer is already
+// stored under its temp id; future work: rename the map key to
+// the actual pubKey and persist a mapping for reconnect).
+// ============================================================
+export function _internal_finalizePeerId(_oldId: string, _newId: string) {
+  // Reserved for a future iteration. Left here intentionally so
+  // callers can wire the rename once we add reconnect support.
 }

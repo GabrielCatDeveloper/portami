@@ -9,8 +9,10 @@ import { useStopAlertWatcher } from '@/geo/useStopAlertWatcher';
 import { resetTriggered } from '@/storage/stopAlerts';
 import { StopAlertsCard } from '@/components/StopAlertsCard';
 import { useTripShareBridge, nextStopInfo } from '@/sync/tripShare';
-import { useSyncStore } from '@/sync';
-import { Stop, AlertTriangle, Info, Share, ShareOff } from '@/components/icons';
+import { useTripShareStore, recipientChip } from '@/state/tripShare';
+import { useIdentityStore } from '@/state/identity';
+import { InviteModal } from '@/components/InviteModal';
+import { Stop, AlertTriangle, Info, Share, ShareOff, Sync as SyncIcon, ArrowUpRight } from '@/components/icons';
 
 export default function TripPage() {
   const { t } = useTranslation();
@@ -85,13 +87,17 @@ export default function TripPage() {
   // Trip sharing via WebRTC. plannedRoute is read from the trip store
   // automatically (set by /journey → start trip) so the friend knows
   // where you're going even if the GPS drops out.
-  const sync = useSyncStore();
+  const identity = useIdentityStore();
+  const outgoing = useTripShareStore((s) => s.outgoing);
   const shareBridge = useTripShareBridge({
+    tripId: activeTrip?.id,
     routeId: route?.id,
     routeName: route?.name,
     lastSample: lastSample ? { lat: lastSample.lat, lng: lastSample.lng, speed: lastSample.speed, ts: lastSample.ts } : null,
   });
   const [sharing, setSharing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [inviteFor, setInviteFor] = useState<{ deviceId: string; alias?: string } | null>(null);
 
   if (!activeTrip || !route) {
     return (
@@ -219,11 +225,19 @@ export default function TripPage() {
               <div className="card-title">Compartir viaje</div>
               <div className="card-subtitle">
                 {sharing
-                  ? 'Tu ubicación se envía cada minuto al dispositivo emparejado.'
+                  ? 'Tu ubicación se envía cada minuto a cada amigo emparejado.'
                   : 'Para que un amigo te encuentre si pierdes el bus o se te acaba la batería.'}
               </div>
             </div>
           </div>
+
+          {sharing && shareBridge.isSharing && (
+            <RecipientList
+              onRetry={(id) => void shareBridge.retryRecipient(id)}
+              onInvite={(deviceId, alias) => setInviteFor({ deviceId, alias })}
+            />
+          )}
+
           {sharing ? (
             <button
               type="button"
@@ -239,12 +253,18 @@ export default function TripPage() {
             <button
               type="button"
               className="btn btn-block btn-primary"
-              onClick={() => {
-                shareBridge.startSharing(null);
-                setSharing(true);
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  const res = await shareBridge.startSharing(null);
+                  if (res) setSharing(true);
+                } finally {
+                  setBusy(false);
+                }
               }}
+              disabled={busy}
             >
-              <Share size={18} /> Compartir con dispositivo emparejado
+              <Share size={18} /> Compartir con mis amigos emparejados
             </button>
           )}
         </section>
@@ -275,6 +295,109 @@ export default function TripPage() {
           {t('trip.endNow')}
         </button>
       </div>
+
+      {inviteFor && outgoing && (
+        <InviteModal
+          recipientDeviceId={inviteFor.deviceId}
+          recipientAlias={inviteFor.alias}
+          tripShareId={outgoing.id}
+          emitterAnonId={identity.anonId ?? ''}
+          onClose={() => setInviteFor(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// RecipientList — live status of each paired friend for the active
+// outgoing share. Subscribes to the trip-share store so it
+// re-renders on ack / status changes.
+// ============================================================
+function RecipientList({
+  onRetry,
+  onInvite,
+}: {
+  onRetry: (deviceId: string) => void;
+  onInvite: (deviceId: string, alias?: string) => void;
+}) {
+  const outgoing = useTripShareStore((s) => s.outgoing);
+  if (!outgoing) return null;
+  const recipients = Object.values(outgoing.recipients);
+  if (recipients.length === 0) {
+    return (
+      <p className="text-sm text-muted mb-3">
+        No tienes amigos emparejados todavía. Empareja uno desde Settings → Sincronizar.
+      </p>
+    );
+  }
+  const delivered = recipients.filter((r) => r.status === 'delivered').length;
+  return (
+    <div className="mb-3" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div className="text-xs text-muted">
+        Compartido con {delivered} de {recipients.length} amigo{recipients.length === 1 ? '' : 's'}
+      </div>
+      {recipients.map((r) => {
+        const chip = recipientChip(r.status);
+        const canRetry = r.status === 'failed' || r.status === 'unreachable';
+        return (
+          <div
+            key={r.deviceId}
+            className="row gap-2"
+            style={{
+              alignItems: 'center',
+              padding: '8px 10px',
+              background: 'var(--bg-subtle)',
+              borderRadius: 'var(--r-md)',
+            }}
+          >
+            <span
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontWeight: 700,
+                minWidth: 24,
+                color:
+                  chip.variant === 'success'
+                    ? 'var(--success)'
+                    : chip.variant === 'danger'
+                    ? 'var(--danger)'
+                    : chip.variant === 'warning'
+                    ? 'var(--warning)'
+                    : 'var(--muted)',
+              }}
+              aria-hidden
+            >
+              {chip.icon}
+            </span>
+            <div style={{ flex: 1, fontSize: 'var(--fs-sm)' }}>
+              <div style={{ fontWeight: 600 }}>{r.alias ?? r.deviceId.slice(0, 8)}</div>
+              <div className="text-xs text-muted">{chip.label}</div>
+            </div>
+            {canRetry && (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => onRetry(r.deviceId)}
+                  aria-label="Reintentar"
+                  title="Reintentar"
+                >
+                  <SyncIcon size={14} />
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => onInvite(r.deviceId, r.alias)}
+                  aria-label="Invitar por otra app"
+                  title="Invitar por WhatsApp / Telegram / SMS"
+                >
+                  <ArrowUpRight size={14} />
+                </button>
+              </>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

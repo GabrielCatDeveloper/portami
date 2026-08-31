@@ -8,6 +8,8 @@ import type {
   PairedDevice,
   Trip,
   GPSSample,
+  OutgoingTripShare,
+  IncomingTripShare,
 } from '@/api/types';
 
 // ============================================================
@@ -92,85 +94,126 @@ interface PortamiDB extends DBSchema {
     value: { tripId: string; ts: number; sample: GPSSample };
     indexes: { 'by-trip': string };
   };
+
+  // Outgoing trip shares (Hito 7 — Fase 2): trips I sent to friends.
+  // One row per share, TTL 7d (enforced by useStorageJanitor).
+  outgoingTripShares: {
+    key: string; // tripShareId
+    value: OutgoingTripShare;
+    indexes: { 'by-startedAt': number; 'by-trip': string };
+  };
+
+  // Incoming trip shares (Hito 7 — Fase 2): trips friends are sharing with me.
+  // Keyed by sender's anonId — at most one active share per sender.
+  // TTL 7d after `endedAt` (also enforced by janitor).
+  incomingTripShares: {
+    key: string; // fromAnonId
+    value: IncomingTripShare;
+    indexes: { 'by-startedAt': number };
+  };
 }
 
 const DB_NAME = 'portami';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBPDatabase<PortamiDB>> | null = null;
 
 export function getDB(): Promise<IDBPDatabase<PortamiDB>> {
   if (!dbPromise) {
     dbPromise = openDB<PortamiDB>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
-        // identity
-        if (!db.objectStoreNames.contains('identity')) {
-          db.createObjectStore('identity');
-        }
-        if (!db.objectStoreNames.contains('deviceKey')) {
-          db.createObjectStore('deviceKey');
+      upgrade(db, oldVersion, _newVersion, tx) {
+        // The `upgrade` callback fires for every version transition
+        // (oldVersion → newVersion). We branch on the OLD version so
+        // each migration step runs exactly once.
+        if (oldVersion < 1) {
+          // ---- v0 → v1: initial schema ----
+          // identity
+          if (!db.objectStoreNames.contains('identity')) {
+            db.createObjectStore('identity');
+          }
+          if (!db.objectStoreNames.contains('deviceKey')) {
+            db.createObjectStore('deviceKey');
+          }
+
+          // routes
+          if (!db.objectStoreNames.contains('routes')) {
+            const store = db.createObjectStore('routes', { keyPath: 'id' });
+            store.createIndex('by-favorite', 'isFavorite');
+            store.createIndex('by-mine', 'isMine');
+          }
+
+          // proposals
+          if (!db.objectStoreNames.contains('proposals')) {
+            const store = db.createObjectStore('proposals', { keyPath: 'id' });
+            store.createIndex('by-route', 'routeId');
+            store.createIndex('by-status', 'status');
+          }
+
+          // recordings
+          if (!db.objectStoreNames.contains('recordings')) {
+            const store = db.createObjectStore('recordings', { keyPath: 'id' });
+            store.createIndex('by-createdAt', 'createdAt');
+          }
+
+          // drafts
+          if (!db.objectStoreNames.contains('draftRoutes')) {
+            db.createObjectStore('draftRoutes', { keyPath: 'recordingId' });
+          }
+
+          // paired devices
+          if (!db.objectStoreNames.contains('pairedDevices')) {
+            const store = db.createObjectStore('pairedDevices', { keyPath: 'deviceId' });
+            store.createIndex('by-pairedAt', 'pairedAt');
+          }
+
+          // conflicts
+          if (!db.objectStoreNames.contains('conflicts')) {
+            db.createObjectStore('conflicts', { keyPath: 'entityId' });
+          }
+
+          // imports
+          if (!db.objectStoreNames.contains('importHistory')) {
+            const store = db.createObjectStore('importHistory', { keyPath: 'id', autoIncrement: true });
+            store.createIndex('by-ts', 'ts');
+          }
+
+          // sync meta
+          if (!db.objectStoreNames.contains('syncMeta')) {
+            db.createObjectStore('syncMeta');
+          }
+
+          // trips
+          if (!db.objectStoreNames.contains('trips')) {
+            const store = db.createObjectStore('trips', { keyPath: 'id' });
+            store.createIndex('by-route', 'routeId');
+            store.createIndex('by-startedAt', 'startedAt');
+          }
+
+          // pending samples
+          if (!db.objectStoreNames.contains('pendingSamples')) {
+            const store = db.createObjectStore('pendingSamples', { keyPath: 'tripId' });
+            // Composite key — we'll use tripId as primary, since we batch by trip
+            store.createIndex('by-trip', 'tripId');
+          }
         }
 
-        // routes
-        if (!db.objectStoreNames.contains('routes')) {
-          const store = db.createObjectStore('routes', { keyPath: 'id' });
-          store.createIndex('by-favorite', 'isFavorite');
-          store.createIndex('by-mine', 'isMine');
+        if (oldVersion < 2) {
+          // ---- v1 → v2: Hito 7 Fase 2 — track trip shares ----
+          // No data migration: this is purely additive.
+          if (!db.objectStoreNames.contains('outgoingTripShares')) {
+            const store = db.createObjectStore('outgoingTripShares', { keyPath: 'id' });
+            store.createIndex('by-startedAt', 'startedAt');
+            store.createIndex('by-trip', 'tripId');
+          }
+          if (!db.objectStoreNames.contains('incomingTripShares')) {
+            const store = db.createObjectStore('incomingTripShares', { keyPath: 'fromAnonId' });
+            store.createIndex('by-startedAt', 'startedAt');
+          }
         }
 
-        // proposals
-        if (!db.objectStoreNames.contains('proposals')) {
-          const store = db.createObjectStore('proposals', { keyPath: 'id' });
-          store.createIndex('by-route', 'routeId');
-          store.createIndex('by-status', 'status');
-        }
-
-        // recordings
-        if (!db.objectStoreNames.contains('recordings')) {
-          const store = db.createObjectStore('recordings', { keyPath: 'id' });
-          store.createIndex('by-createdAt', 'createdAt');
-        }
-
-        // drafts
-        if (!db.objectStoreNames.contains('draftRoutes')) {
-          db.createObjectStore('draftRoutes', { keyPath: 'recordingId' });
-        }
-
-        // paired devices
-        if (!db.objectStoreNames.contains('pairedDevices')) {
-          const store = db.createObjectStore('pairedDevices', { keyPath: 'deviceId' });
-          store.createIndex('by-pairedAt', 'pairedAt');
-        }
-
-        // conflicts
-        if (!db.objectStoreNames.contains('conflicts')) {
-          db.createObjectStore('conflicts', { keyPath: 'entityId' });
-        }
-
-        // imports
-        if (!db.objectStoreNames.contains('importHistory')) {
-          const store = db.createObjectStore('importHistory', { keyPath: 'id', autoIncrement: true });
-          store.createIndex('by-ts', 'ts');
-        }
-
-        // sync meta
-        if (!db.objectStoreNames.contains('syncMeta')) {
-          db.createObjectStore('syncMeta');
-        }
-
-        // trips
-        if (!db.objectStoreNames.contains('trips')) {
-          const store = db.createObjectStore('trips', { keyPath: 'id' });
-          store.createIndex('by-route', 'routeId');
-          store.createIndex('by-startedAt', 'startedAt');
-        }
-
-        // pending samples
-        if (!db.objectStoreNames.contains('pendingSamples')) {
-          const store = db.createObjectStore('pendingSamples', { keyPath: 'tripId' });
-          // Composite key — we'll use tripId as primary, since we batch by trip
-          store.createIndex('by-trip', 'tripId');
-        }
+        // Reference `tx` to silence "declared but never read" warnings.
+        // Future migrations will use it to read existing data.
+        void tx;
       },
     });
   }

@@ -313,6 +313,131 @@ export type PairedDevice = {
 };
 
 // ============================================================
+// Multi-peer WebRTC status (Hito 7 — Fase 1)
+// ============================================================
+
+/**
+ * Connection state of a single WebRTC peer.
+ * - `disconnected`: never connected or explicitly closed
+ * - `connecting`:   SDP/ICE exchange in progress (initial pair or reconnect)
+ * - `connected`:    data channel open
+ * - `reconnecting`: ICE connection dropped, retrying
+ * - `unreachable`:  repeated failures — manual intervention needed
+ * - `revoked`:      user removed this peer from pairedDevices
+ * - `error`:        unrecoverable error (e.g. pair-code mismatch)
+ */
+export type PeerStatus =
+  | 'disconnected'
+  | 'connecting'
+  | 'connected'
+  | 'reconnecting'
+  | 'unreachable'
+  | 'revoked'
+  | 'error';
+
+export type PeerInfo = {
+  /** Stable peer identifier — equals the paired device's `deviceId` (== pubKey). */
+  deviceId: string;
+  /** Human alias, copied from `PairedDevice.alias` at pairing time. */
+  alias: string;
+  /** Peer pubKey (== deviceId, kept for explicitness). */
+  pubKey: string;
+  status: PeerStatus;
+  /** When the current connection entered `connected` (ms epoch). */
+  lastConnectedAt?: number;
+  /** Last error message if status === 'error'. */
+  lastError?: string;
+};
+
+// ============================================================
+// Trip shares (Hito 7 — Fase 2)
+//
+// Two stores: one for outgoing trip shares (what I send to friends),
+// one for incoming (what my friends are sharing with me).
+// Both have TTL 7d enforced by useStorageJanitor.
+// ============================================================
+
+/**
+ * Compact summary of a planned journey, safe to send over the wire
+ * and to persist on either side. Lighter than the full `Journey`.
+ */
+export type PlannedRouteSummary = {
+  steps: Array<{ kind: 'walk' | 'ride'; label: string }>;
+  totalDurationS: number;
+};
+
+/** Delivery state for one recipient of an outgoing trip share. */
+export type RecipientStatus =
+  | 'pending'   // sent, no ack yet (waiting up to 10s)
+  | 'delivered' // ack received
+  | 'failed'    // retried at least once, still no ack
+  | 'unreachable'; // peer not connected, will retry on reconnect
+
+export type OutgoingTripShareRecipient = {
+  /** The peer's deviceId (= pubKey). */
+  deviceId: string;
+  /** Peer anonId — populated when we receive the `hello` ack. */
+  peerAnonId?: string;
+  /** Human alias of the recipient. */
+  alias?: string;
+  status: RecipientStatus;
+  /** Last time we tried to send (or retry) to this recipient. */
+  lastAttemptAt: number;
+  /** When the recipient acked `trip-share-start`. */
+  deliveredAt?: number;
+  /** Last error if status === 'failed'. */
+  error?: string;
+};
+
+/**
+ * One row in `outgoingTripShares`. Represents "I started a trip on
+ * route X at time T, and I tried to share it with N friends".
+ */
+export type OutgoingTripShare = {
+  /** tripShareId — UUID generated at startSharing(). */
+  id: string;
+  /** The user's local trip id (FK to `trips`). */
+  tripId: string;
+  routeId: string;
+  routeName: string;
+  plannedRoute?: PlannedRouteSummary;
+  /** My anonId — included for debugging / multi-device replay. */
+  myAnonId: string;
+  startedAt: number;
+  endedAt?: number;
+  endReason?: string;
+  /** Keyed by peer deviceId. */
+  recipients: Record<string, OutgoingTripShareRecipient>;
+};
+
+/**
+ * One row in `incomingTripShares`. Keyed by `fromAnonId` because a
+ * given friend can have at most one *active* incoming share at a time
+ * (they can only be on one trip at once).
+ */
+export type IncomingTripShare = {
+  /** Sender's anonId. */
+  fromAnonId: string;
+  /** Sender's deviceId (== pubKey), for WebRTC targeting. */
+  fromDeviceId: string;
+  /** Sender's alias at the time the share started. */
+  fromAlias?: string;
+  /** The trip id assigned by the sender (informational only). */
+  tripId: string;
+  routeId?: string;
+  routeName?: string;
+  plannedRoute?: PlannedRouteSummary;
+  startedAt: number;
+  endedAt?: number;
+  endReason?: string;
+  lastLocation?: LatLng & { ts: number; speed?: number };
+  nextStopName?: string;
+  etaNextStopS?: number;
+  /** Connection state of the sender as observed locally. */
+  senderStatus: 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
+};
+
+// ============================================================
 // Sync messages
 // ============================================================
 
@@ -329,17 +454,22 @@ export type SyncMessage =
   | { kind: 'ping'; ts: number }
   | { kind: 'pong'; ts: number }
   // Trip sharing (sender → receiver) — for the "friend can find me" feature.
+  // `tripShareId` correlates all messages of the same share so the
+  // receiver can ack each one and the sender can track delivery.
   | {
       kind: 'trip-share-start';
+      tripShareId: string;
       fromAnonId: string;
+      fromDeviceId: string;
       fromAlias?: string;
       routeId?: string;
       routeName?: string;
-      plannedRoute?: { steps: Array<{ kind: 'walk' | 'ride'; label: string }>; totalDurationS: number };
+      plannedRoute?: PlannedRouteSummary;
       startedAt: number;
     }
   | {
       kind: 'trip-share-location';
+      tripShareId: string;
       fromAnonId: string;
       ts: number;
       lat: number;
@@ -348,4 +478,14 @@ export type SyncMessage =
       nextStopName?: string;
       etaNextStopS?: number;
     }
-  | { kind: 'trip-share-end'; fromAnonId: string; ts: number; reason: string };
+  | { kind: 'trip-share-end'; tripShareId: string; fromAnonId: string; ts: number; reason: string }
+  // Ack from receiver → sender. Sent in response to `trip-share-start`
+  // (mandatory) and optionally to `trip-share-location`/`trip-share-end`.
+  | {
+      kind: 'trip-share-ack';
+      tripShareId: string;
+      recipientAnonId: string;
+      recipientDeviceId: string;
+      ts: number;
+      ackFor: 'start' | 'location' | 'end';
+    };

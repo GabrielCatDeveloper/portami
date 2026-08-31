@@ -12,10 +12,17 @@ export default function FollowingPage() {
   const navigate = useNavigate();
   const sharedTrips = useTripShareStore((s) => s.sharedTrips);
   const setSharedTrip = useTripShareStore((s) => s.setSharedTrip);
+  const hydrate = useTripShareStore((s) => s.hydrate);
   const trips = Object.values(sharedTrips);
   const activeTrips = trips.filter((t) => !t.endedAt);
   const endedTrips = trips.filter((t) => !!t.endedAt).sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0));
   const [selected, setSelected] = useState<SharedTrip | null>(null);
+
+  // Hydrate the in-memory cache from IndexedDB on mount, so a page
+  // refresh or cold boot doesn't lose the active shares.
+  useEffect(() => {
+    void hydrate();
+  }, [hydrate]);
 
   useEffect(() => {
     if (!selected && activeTrips[0]) setSelected(activeTrips[0]);
@@ -53,6 +60,14 @@ export default function FollowingPage() {
           <ArrowLeft />
         </button>
         <h1 style={{ flex: 1 }}>Siguiendo</h1>
+        {activeTrips.length > 0 && (
+          <span
+            className="chip active"
+            aria-label={`${activeTrips.length} viaje${activeTrips.length === 1 ? '' : 's'} en directo`}
+          >
+            {activeTrips.length}
+          </span>
+        )}
       </header>
 
       {activeTrips.length > 1 && (

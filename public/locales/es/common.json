@@ -44,6 +44,37 @@
     "liveSharing": "Compartiendo ubicación anónimamente",
     "liveSharingOff": "Sin compartir"
   },
+  "invite": {
+    "title": "Invitar a {{name}} por otra app",
+    "subtitle": "Genera un enlace que puedes enviar por WhatsApp, Telegram o SMS. Cuando lo abra en portami, empezará a recibir tu viaje.",
+    "generating": "Generando enlace…",
+    "copy": "Copiar enlace",
+    "share": "Compartir",
+    "shareVia": "Enviar por",
+    "whatsapp": "WhatsApp",
+    "telegram": "Telegram",
+    "sms": "SMS",
+    "copied": "¡Copiado!",
+    "cancel": "Cancelar",
+    "error": "No se pudo generar el enlace",
+    "notSupported": "Tu navegador no soporta WebRTC; no podemos crear el enlace."
+  },
+  "connect": {
+    "title": "Recibir invitación",
+    "subtitle": "{{alias}} quiere compartir su viaje contigo.",
+    "generating": "Generando respuesta…",
+    "sendBack": "Envía esta respuesta de vuelta a {{alias}} por la misma app",
+    "answerReady": "Tu respuesta está lista",
+    "answerCopyHint": "Copia este enlace y pégalo en el chat con {{alias}}",
+    "sendBackVia": "Enviar respuesta por",
+    "waitingTitle": "Esperando respuesta de {{alias}}",
+    "waitingSubtitle": "Cuando abras el enlace de vuelta en portami, la conexión se completará automáticamente.",
+    "invalidLink": "Este enlace de invitación no es válido",
+    "notForYou": "Esta respuesta no es para ti",
+    "processing": "Procesando respuesta…",
+    "success": "¡Conectado! Recibirás el viaje en directo.",
+    "error": "No se pudo completar la conexión"
+  },
   "routes": {
     "list": "Rutas",
     "nearYou": "Cerca de ti",

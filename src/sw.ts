@@ -25,11 +25,9 @@ import { clientsClaim } from 'workbox-core';
 declare const self: ServiceWorkerGlobalScope;
 
 // Increment whenever the SW logic changes in a way that requires all
-// clients to drop their old runtime caches. Bumped to v19: /journey
-// journey cards now have an 'Iniciar este viaje' button that starts
-// the trip on the first route of the plan and attaches the plan to
-// the trip (so the friend sees the itinerary on the share).
-const CACHE_VERSION = 19;
+// clients to drop their old runtime caches. Bumped to v20: trip-share
+// notifications now have action buttons (Hito 7 — Fase 7).
+const CACHE_VERSION = 20;
 
 self.skipWaiting();
 clientsClaim();
@@ -81,7 +79,8 @@ self.addEventListener('message', (event: ExtendableMessageEvent) => {
   if (!data || !data.type) return;
 
   if (data.type === 'SHOW_NOTIFICATION') {
-    const { title, body, tag, url, requireInteraction } = data.payload ?? {};
+    const { title, body, tag, url, requireInteraction, actions } =
+      data.payload ?? {};
     void self.registration.showNotification(title ?? 'portami', {
       body: body ?? '',
       tag: tag ?? 'portami',
@@ -89,6 +88,10 @@ self.addEventListener('message', (event: ExtendableMessageEvent) => {
       badge: iconUrl(192),
       data: { url },
       requireInteraction: !!requireInteraction,
+      // Action buttons — at most 2 visible (browser limit). The
+      // receiver side defines "view" and "dismiss"; the SW handles
+      // them in `notificationclick`.
+      actions: Array.isArray(actions) ? actions.slice(0, 2) : undefined,
       ...({ vibrate: [120, 60, 120] } as any),
     });
   }
@@ -97,17 +100,27 @@ self.addEventListener('message', (event: ExtendableMessageEvent) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const targetUrl = (event.notification.data?.url as string) ?? BASE;
+
+  // If the user explicitly tapped "dismiss", do nothing more.
+  if (event.action === 'dismiss') {
+    return;
+  }
+
+  // Default click or explicit "view" action → focus existing window
+  // and tell the app to navigate to the target URL.
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
-      for (const w of wins) {
-        if ('focus' in w) {
-          w.focus();
-          w.postMessage({ type: 'NAVIGATE', payload: { url: targetUrl } });
-          return;
+    self.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((wins) => {
+        for (const w of wins) {
+          if ('focus' in w) {
+            w.focus();
+            w.postMessage({ type: 'NAVIGATE', payload: { url: targetUrl } });
+            return;
+          }
         }
-      }
-      return self.clients.openWindow(targetUrl);
-    }),
+        return self.clients.openWindow(targetUrl);
+      }),
   );
 });
 
