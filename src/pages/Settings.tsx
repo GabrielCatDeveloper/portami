@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { SUPPORTED_LANGUAGES, LANGUAGE_LABELS } from '@/i18n';
 import { useIdentityStore } from '@/state/identity';
-import { Key, Copy, Download, Upload, AlertTriangle, ChevronDown } from '@/components/icons';
+import { Key, Copy, Download, Upload, AlertTriangle, ChevronDown, Sync as SyncIcon, Trash } from '@/components/icons';
+import { getDB } from '@/storage/db';
+import type { PairedDevice } from '@/api/types';
 import {
   exportMyRoutesAsGeoJSON,
   importGeoJSON,
@@ -18,6 +21,7 @@ import {
 
 export default function SettingsPage() {
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const identity = useIdentityStore((s) => s.identity);
   const anonId = useIdentityStore((s) => s.anonId);
   const regenerate = useIdentityStore((s) => s.regenerate);
@@ -28,6 +32,21 @@ export default function SettingsPage() {
   const [lastError, setLastError] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showDanger, setShowDanger] = useState(false);
+  const [pairedDevices, setPairedDevices] = useState<PairedDevice[]>([]);
+
+  // Load paired devices for the Sync card
+  const reloadDevices = async () => {
+    try {
+      const db = await getDB();
+      const list = await db.getAll('pairedDevices');
+      setPairedDevices(list);
+    } catch {
+      setPairedDevices([]);
+    }
+  };
+  useEffect(() => {
+    void reloadDevices();
+  }, []);
 
   if (!identity) return null;
 
@@ -340,14 +359,53 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      {/* Sync shortcuts */}
+      {/* Dispositivos emparejados (WebRTC) */}
       <section className="card mb-4">
         <div className="card-header">
-          <div className="card-title">{t('sync.devices')}</div>
+          <div className="list-item-icon"><SyncIcon size={20} /></div>
+          <div style={{ flex: 1 }}>
+            <div className="card-title">Sincronizar con otro dispositivo</div>
+            <div className="card-subtitle">
+              Pasa tu identidad y tus rutas a otro móvil u ordenador por WebRTC. Sin servidores.
+            </div>
+          </div>
         </div>
-        <a href="/sync" className="btn btn-block">
-          {t('sync.pair')}
-        </a>
+
+        {pairedDevices.length > 0 && (
+          <div className="list mb-3">
+            {pairedDevices.map((d) => (
+              <div key={d.deviceId} className="list-item">
+                <div className="list-item-icon">
+                  <SyncIcon size={20} />
+                </div>
+                <div className="list-item-body">
+                  <div className="list-item-title">{d.alias}</div>
+                  <div className="list-item-sub">
+                    #{d.pubKey.slice(0, 8)} · Última sync:{' '}
+                    {new Date(d.lastSeenAt).toLocaleString()}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  aria-label="Revocar"
+                  onClick={async () => {
+                    if (!confirm(`¿Revocar "${d.alias}"?`)) return;
+                    const db = await getDB();
+                    await db.delete('pairedDevices', d.deviceId);
+                    void reloadDevices();
+                  }}
+                >
+                  <Trash size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button type="button" className="btn btn-primary btn-block" onClick={() => navigate('/sync')}>
+          <SyncIcon size={18} /> Emparejar nuevo dispositivo
+        </button>
       </section>
 
       {/* Notifications */}

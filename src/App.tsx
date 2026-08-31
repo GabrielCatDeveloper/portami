@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useIdentityStore } from '@/state/identity';
-import { Home as HomeIcon, Map, Record as RecordIcon, Sync as SyncIcon, Settings as SettingsIcon } from '@/components/icons';
+import { Home as HomeIcon, Map, Record as RecordIcon, Settings as SettingsIcon } from '@/components/icons';
 import { TripBanner } from '@/components/TripBanner';
 
 import HomePage from '@/pages/Home';
@@ -51,6 +51,8 @@ export default function App() {
           <Route path="/routes/:id" element={<RouteDetailPage />} />
           <Route path="/trip" element={<TripPage />} />
           <Route path="/record" element={<RecordPage />} />
+          {/* Sync is reachable from Settings (less-used action, no need
+              for a permanent slot in the bottom nav). */}
           <Route path="/sync" element={<SyncPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
@@ -68,10 +70,6 @@ export default function App() {
         <NavLink to="/record" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
           <RecordIcon size={22} />
           <span>{t('nav.record')}</span>
-        </NavLink>
-        <NavLink to="/sync" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
-          <SyncIcon size={22} />
-          <span>{t('nav.sync')}</span>
         </NavLink>
         <NavLink to="/settings" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
           <SettingsIcon size={22} />
