@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { SUPPORTED_LANGUAGES, LANGUAGE_LABELS } from '@/i18n';
 import { useIdentityStore } from '@/state/identity';
-import { Key, Copy, Download, Upload, AlertTriangle, ChevronDown, Sync as SyncIcon, Trash } from '@/components/icons';
+import { useTestingStore } from '@/state/testing';
+import { Key, Copy, Download, Upload, AlertTriangle, ChevronDown, Sync as SyncIcon, Trash, Beaker } from '@/components/icons';
 import { getDB } from '@/storage/db';
 import type { PairedDevice } from '@/api/types';
 import {
@@ -26,6 +27,7 @@ export default function SettingsPage() {
   const anonId = useIdentityStore((s) => s.anonId);
   const regenerate = useIdentityStore((s) => s.regenerate);
   const importFromJwk = useIdentityStore((s) => s.importFromJwk);
+  const testing = useTestingStore();
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<string | null>(null);
@@ -409,6 +411,57 @@ export default function SettingsPage() {
         <button type="button" className="btn btn-block mt-2" onClick={() => navigate('/following')}>
           <ChevronDown size={18} style={{ transform: 'rotate(-90deg)' }} /> Ver viajes compartidos
         </button>
+      </section>
+
+      {/* Testing mode */}
+      <section className="card mb-4" data-testid="settings-testing">
+        <div className="card-header">
+          <div className="list-item-icon" style={{ background: 'var(--accent-500)', color: 'white' }}>
+            <Beaker size={20} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div className="card-title">{t('testing.title')}</div>
+            <div className="card-subtitle">{t('testing.subtitle')}</div>
+          </div>
+        </div>
+
+        <label className="row gap-2" style={{ alignItems: 'center', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={testing.enabled}
+            onChange={(e) => testing.setEnabled(e.target.checked)}
+            data-testid="testing-toggle"
+          />
+          <span style={{ fontWeight: 600 }}>{t('testing.enable')}</span>
+        </label>
+        <p className="text-xs text-muted mt-2 mb-3">{t('testing.enableHint')}</p>
+
+        {testing.enabled && (
+          <div className="field">
+            <label className="field-label">{t('testing.gps')}</label>
+            <div className="row gap-2" style={{ flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className={`chip ${testing.gpsMode === 'simulated' ? 'active' : ''}`}
+                onClick={() => testing.setGpsMode('simulated')}
+              >
+                {t('testing.gpsSimulated')}
+              </button>
+              <button
+                type="button"
+                className={`chip ${testing.gpsMode === 'real' ? 'active' : ''}`}
+                onClick={() => testing.setGpsMode('real')}
+              >
+                {t('testing.gpsReal')}
+              </button>
+            </div>
+            <div className="banner banner-info mt-3">
+              <span>{t('testing.reloadToApply')}</span>
+            </div>
+          </div>
+        )}
+
+        <p className="text-xs text-muted mt-3">{t('testing.databaseNote')}</p>
       </section>
 
       {/* Notifications */}

@@ -75,6 +75,18 @@
     "success": "Connected! You'll receive the trip live.",
     "error": "Could not complete the connection"
   },
+  "testing": {
+    "title": "Testing mode",
+    "subtitle": "Turn this on to run portami with simulated data. Useful for demos or when the server is down.",
+    "enable": "Enable testing mode",
+    "enableHint": "When on, all server data comes from local mocks and you can pick whether GPS is real or simulated.",
+    "databaseNote": "Your local database is preserved when toggling this mode.",
+    "gps": "GPS source",
+    "gpsReal": "Real (navigator.geolocation)",
+    "gpsSimulated": "Simulated (random walk around Madrid)",
+    "applied": "Testing mode applied. Reload the tab if the app is already open.",
+    "reloadToApply": "Reload to apply"
+  },
   "routes": {
     "list": "Routes",
     "nearYou": "Near you",

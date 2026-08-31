@@ -7,18 +7,20 @@ import App from './App';
 import { startMockServer } from '../mocks/browser';
 import { startServerHealthOnce } from '@/state/health';
 import { getApiBase } from '@/api/client';
+import { useTestingStore } from '@/state/testing';
 import './i18n';
 
 // Must match the `base` config in vite.config.ts. Read from the same env
 // var so dev (/) and production (/portami/) work correctly.
 const basename = import.meta.env.VITE_BASE_PATH || '/';
 
-// MSW is used in two modes:
+// MSW is used in three modes:
 //  - DEV (always): easy local development without a backend.
 //  - PROD when VITE_API_BASE is empty: app falls back to mocks.
-//  - PROD when VITE_API_BASE is set: mocks are NOT started; the real
-//    server is the source of truth. The health store detects the server
-//    going down and the UI shows offline indicators.
+//  - PROD when VITE_API_BASE is set but the user has the testing mode
+//    enabled in Settings: we force MSW so the app keeps working
+//    even when the backend is down or its CORS isn't configured
+//    for our origin.
 //
 // We use BrowserRouter (clean URLs like /portami/settings) instead of
 // HashRouter. To make refresh / deep-link work on GitHub Pages, vite is
@@ -27,7 +29,10 @@ const basename = import.meta.env.VITE_BASE_PATH || '/';
 // from it and BrowserRouter reads the actual pathname and routes correctly.
 async function bootstrap() {
   const apiBase = getApiBase();
-  const useMocks = import.meta.env.DEV || !apiBase;
+  const testing = useTestingStore.getState();
+  // When testing mode is on, MSW always wins — even if a real
+  // server is configured — so the app never talks to the network.
+  const useMocks = import.meta.env.DEV || !apiBase || testing.enabled;
   if (useMocks) {
     await startMockServer();
   } else {

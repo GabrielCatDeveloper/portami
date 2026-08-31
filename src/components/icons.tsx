@@ -335,6 +335,15 @@ export const Clock = (p: IconProps) => (
   </svg>
 );
 
+export const Beaker = (p: IconProps) => (
+  // Lab flask — used for the Testing-mode section in Settings.
+  <svg {...base(p)} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 3h6" />
+    <path d="M10 3v6.5L4.5 18a2 2 0 0 0 1.7 3h11.6a2 2 0 0 0 1.7-3L14 9.5V3" />
+    <path d="M7.5 14h9" />
+  </svg>
+);
+
 export const ArrowUpRight = (p: IconProps) => (
   <svg {...base(p)}>
     <line x1="7" y1="17" x2="17" y2="7" />

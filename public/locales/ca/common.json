@@ -75,6 +75,18 @@
     "success": "Connectat! Rebràs el viatge en directe.",
     "error": "No s'ha pogut completar la connexió"
   },
+  "testing": {
+    "title": "Mode testing",
+    "subtitle": "Activa aquest mode per fer servir portami amb dades simulades. Útil per a demos o si el servidor no respon.",
+    "enable": "Activar mode testing",
+    "enableHint": "Quan estigui actiu, totes les dades del servidor vénen de mocks locals i pots triar si el GPS és real o simulat.",
+    "databaseNote": "No s'esborrarà res de la teva base de dades local en activar o desactivar aquest mode.",
+    "gps": "Font de GPS",
+    "gpsReal": "Real (navigator.geolocation)",
+    "gpsSimulated": "Simulat (recorregut aleatori per Madrid)",
+    "applied": "Mode testing aplicat. Recarrega la pestanya si ja tens l'app oberta.",
+    "reloadToApply": "Recarrega per aplicar"
+  },
   "routes": {
     "list": "Rutes",
     "nearYou": "A prop teu",

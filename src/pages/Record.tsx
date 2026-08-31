@@ -43,7 +43,6 @@ export default function RecordPage() {
   const [intervalEnd, setIntervalEnd] = useState('20:00');
   const recordingIdRef = useRef<string | null>(null);
   const listenerCleanupRef = useRef<(() => void) | null>(null);
-  const demoTimerRef = useRef<number | null>(null);
 
   // Update trim end whenever samples change
   useEffect(() => {
@@ -82,49 +81,8 @@ export default function RecordPage() {
     geoWatcher.start();
   };
 
-  const startDemoRecording = () => {
-    setError(null);
-    recordingIdRef.current = randomUUID();
-    setSamples([]);
-    setTrimStart(0);
-    setTrimEnd(0);
-    setPendingCuts([]);
-    setPhase('recording');
-    // Simulate ~80 samples walking from Puerta del Sol to Atocha (Madrid)
-    // over a fake 4-minute trip, with periodic stops.
-    let i = 0;
-    const base = Date.now();
-    const totalSamples = 80;
-    demoTimerRef.current = window.setInterval(() => {
-      if (i >= totalSamples) {
-        if (demoTimerRef.current) window.clearInterval(demoTimerRef.current);
-        demoTimerRef.current = null;
-        return;
-      }
-      // Interpolate along a noisy path
-      const phase = i / totalSamples;
-      const lat = 40.4170 + (40.4080 - 40.4170) * phase + (Math.random() - 0.5) * 0.0005;
-      const lng = -3.7035 + (-3.6910 - -3.7035) * phase + (Math.random() - 0.5) * 0.0005;
-      // Add a "stop" every 12 samples
-      const speed = i % 12 < 6 ? 0.2 : 4.5;
-      const sample: GPSSample = {
-        ts: base + i * 3000,
-        lat,
-        lng,
-        acc: 8 + Math.random() * 5,
-        speed,
-      };
-      setSamples((prev) => [...prev, sample]);
-      i++;
-    }, 200);
-  };
-
   const stopRecording = () => {
     geoWatcher.stop();
-    if (demoTimerRef.current) {
-      window.clearInterval(demoTimerRef.current);
-      demoTimerRef.current = null;
-    }
     if (samples.length < 5) {
       setError('Necesitamos más muestras para formar una ruta');
       setPhase('idle');
@@ -275,14 +233,6 @@ export default function RecordPage() {
           >
             <button type="button" className="btn btn-primary btn-lg btn-block" onClick={startRecording}>
               <RecordIcon size={20} /> {t('record.start')}
-            </button>
-            <button
-              type="button"
-              className="btn btn-block"
-              onClick={startDemoRecording}
-              title="Genera una grabación de prueba sin usar el GPS real"
-            >
-              Modo demo (sin GPS)
             </button>
           </div>
           {error && (

@@ -1,12 +1,48 @@
 // ============================================================
 // Geolocation watcher with throttling + queue
+//
+// Uses a swappable "source" so the testing mode can swap in a
+// synthetic GPS source (see syntheticGps.ts) at runtime without
+// callers needing to know.
 // ============================================================
 import type { GPSSample } from '@/api/types';
 import { apiFetch } from '@/api/client';
+import { shouldUseSyntheticGps } from '@/state/testing';
+import { SyntheticGpsSource } from './syntheticGps';
 
 type Listener = (sample: GPSSample) => void;
 
 export type GeoPermission = 'unknown' | 'granted' | 'denied' | 'prompt' | 'error';
+
+/**
+ * Minimal surface of a GPS source. Both `navigator.geolocation` and
+ * `SyntheticGpsSource` satisfy this.
+ */
+export interface GpsSource {
+  watchPosition(
+    onPos: (pos: GeolocationPosition) => void,
+    onErr?: (err: unknown) => void,
+    opts?: PositionOptions,
+  ): number;
+  clearWatch(id: number): void;
+}
+
+class RealGpsSource implements GpsSource {
+  watchPosition(
+    onPos: (pos: GeolocationPosition) => void,
+    onErr?: (err: unknown) => void,
+    opts?: PositionOptions,
+  ): number {
+    return navigator.geolocation.watchPosition(
+      onPos,
+      onErr as unknown as PositionErrorCallback,
+      opts,
+    );
+  }
+  clearWatch(id: number): void {
+    navigator.geolocation.clearWatch(id);
+  }
+}
 
 export class GeoWatcher {
   private watchId: number | null = null;
@@ -17,13 +53,52 @@ export class GeoWatcher {
   private currentTripId: string | null = null;
   private sendEveryMs: number;
   private maxAccuracyM: number;
+  private source: GpsSource;
+  private syntheticSource: SyntheticGpsSource | null = null;
 
-  constructor(opts?: { sendEveryMs?: number; maxAccuracyM?: number }) {
+  constructor(opts?: { sendEveryMs?: number; maxAccuracyM?: number; source?: GpsSource }) {
     this.sendEveryMs = opts?.sendEveryMs ?? 10_000;
     this.maxAccuracyM = opts?.maxAccuracyM ?? 50;
+    this.source = opts?.source ?? this.createSource();
+  }
+
+  /**
+   * Pick the right source for the current testing state.
+   * Real geolocation in normal mode; synthetic in testing+simulated.
+   */
+  private createSource(): GpsSource {
+    if (shouldUseSyntheticGps()) {
+      this.syntheticSource = new SyntheticGpsSource();
+      return this.syntheticSource;
+    }
+    this.syntheticSource = null;
+    return new RealGpsSource();
+  }
+
+  /**
+   * Hot-swap the source at runtime (used when the user toggles the
+   * testing option in Settings while the watcher is running). Safe
+   * to call multiple times — restarts the underlying watch if needed.
+   */
+  setSource(source: GpsSource): void {
+    const wasRunning = this.watchId !== null;
+    if (wasRunning) this.stop();
+    this.source = source;
+    if (wasRunning) this.start();
+  }
+
+  /** Re-evaluate testing state and swap source if needed. */
+  refreshSource(): void {
+    this.setSource(this.createSource());
   }
 
   async checkPermission(): Promise<GeoPermission> {
+    // Synthetic source doesn't need permission — claim granted so the
+    // UI flow can proceed without an interactive prompt.
+    if (this.syntheticSource) {
+      this.permission = 'granted';
+      return this.permission;
+    }
     if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
       this.permission = 'error';
       return this.permission;
@@ -43,6 +118,10 @@ export class GeoWatcher {
   }
 
   async requestPermission(): Promise<GeoPermission> {
+    if (this.syntheticSource) {
+      this.permission = 'granted';
+      return this.permission;
+    }
     return new Promise((resolve) => {
       if (!('geolocation' in navigator)) {
         this.permission = 'error';
@@ -66,10 +145,9 @@ export class GeoWatcher {
   start(tripId?: string) {
     if (this.watchId !== null) return;
     this.currentTripId = tripId ?? this.currentTripId;
-    if (!('geolocation' in navigator)) return;
-    this.watchId = navigator.geolocation.watchPosition(
+    this.watchId = this.source.watchPosition(
       (pos) => this.handlePosition(pos),
-      (err) => console.warn('geo error', err.code, err.message),
+      (err) => console.warn('geo error', err),
       {
         enableHighAccuracy: true,
         maximumAge: 0,
@@ -80,7 +158,7 @@ export class GeoWatcher {
 
   stop() {
     if (this.watchId !== null) {
-      navigator.geolocation.clearWatch(this.watchId);
+      this.source.clearWatch(this.watchId);
       this.watchId = null;
     }
   }

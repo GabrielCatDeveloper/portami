@@ -25,12 +25,13 @@ import { clientsClaim } from 'workbox-core';
 declare const self: ServiceWorkerGlobalScope;
 
 // Increment whenever the SW logic changes in a way that requires all
-// clients to drop their old runtime caches. Bumped to v22: second
-// fix for React error #185 (the production deploy of v21 still
-// looped because subscribeHealth's immediate-on-subscribe callback
-// scheduled a render inside React's commit phase; the v22 build
-// drops that callback entirely).
-const CACHE_VERSION = 22;
+// clients to drop their old runtime caches. Bumped to v23: testing
+// mode (Settings → Testing) + synthetic GPS source. This lets the app
+// run entirely offline (MSW + synthetic positions), independent of
+// the backend — useful when the server is unreachable or its CORS
+// isn't configured for our origin (e.g. fresh GitHub Pages deploy
+// before Deno Deploy finishes picking up the CORS commit).
+const CACHE_VERSION = 23;
 
 self.skipWaiting();
 clientsClaim();
