@@ -25,9 +25,12 @@ import { clientsClaim } from 'workbox-core';
 declare const self: ServiceWorkerGlobalScope;
 
 // Increment whenever the SW logic changes in a way that requires all
-// clients to drop their old runtime caches. Bumped to v20: trip-share
-// notifications now have action buttons (Hito 7 — Fase 7).
-const CACHE_VERSION = 20;
+// clients to drop their old runtime caches. Bumped to v21: Hito 7
+// shipped (multi-peer sharing + invite deeplink + action buttons +
+// NAVIGATE handler) and we want every installed PWA to drop its
+// stale precache + runtime caches so users get the new build on next
+// load instead of waiting for the OS to evict the old SW.
+const CACHE_VERSION = 21;
 
 self.skipWaiting();
 clientsClaim();
