@@ -85,8 +85,15 @@ export function getHealthSnapshot(): HealthSnapshot {
 }
 
 export function subscribeHealth(fn: Listener): () => void {
+  // CRITICAL: do NOT call fn(snapshot()) here. The contract for
+  // subscribers (and for useSyncExternalStore in particular) is
+  // "register the callback; fire it on store changes". Calling the
+  // callback synchronously inside subscribe — even with the current
+  // snapshot — was triggering a re-render inside React's commit
+  // phase, which produced a "Maximum update depth exceeded" loop
+  // (React error #185). React reads the initial value itself via
+  // getSnapshot(); we don't need to push it.
   listeners.add(fn);
-  fn(snapshot());
   return () => listeners.delete(fn);
 }
 

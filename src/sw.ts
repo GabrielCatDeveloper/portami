@@ -25,12 +25,12 @@ import { clientsClaim } from 'workbox-core';
 declare const self: ServiceWorkerGlobalScope;
 
 // Increment whenever the SW logic changes in a way that requires all
-// clients to drop their old runtime caches. Bumped to v21: Hito 7
-// shipped (multi-peer sharing + invite deeplink + action buttons +
-// NAVIGATE handler) and we want every installed PWA to drop its
-// stale precache + runtime caches so users get the new build on next
-// load instead of waiting for the OS to evict the old SW.
-const CACHE_VERSION = 21;
+// clients to drop their old runtime caches. Bumped to v22: second
+// fix for React error #185 (the production deploy of v21 still
+// looped because subscribeHealth's immediate-on-subscribe callback
+// scheduled a render inside React's commit phase; the v22 build
+// drops that callback entirely).
+const CACHE_VERSION = 22;
 
 self.skipWaiting();
 clientsClaim();

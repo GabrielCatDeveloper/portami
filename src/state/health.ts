@@ -14,10 +14,15 @@ export function useServerHealth(): HealthSnapshot {
   // CRITICAL: pass `subscribeHealth` and `getHealthSnapshot` directly
   // (module-level references). Wrapping them in arrow functions
   // creates a fresh function on every render, which makes React's
-  // internal useEffect re-subscribe on every render — and since
-  // subscribeHealth immediately calls back with `snapshot()`, that
-  // schedules another render, producing an infinite loop
-  // ("Maximum update depth exceeded" / React error #185).
+  // internal useEffect re-subscribe on every render and produces an
+  // infinite loop ("Maximum update depth exceeded" / React error
+  // #185). The combined contract that avoids the loop:
+  //   1. Stable subscribe/getSnapshot references (this file).
+  //   2. subscribeHealth does NOT call the listener synchronously
+  //      (see api/health.ts — calling it was the second trigger of
+  //      the loop).
+  //   3. snapshot() returns a stable reference when state is unchanged
+  //      (cache keyed by state identity, see api/health.ts).
   return useSyncExternalStore(
     subscribeHealth,
     getHealthSnapshot,
