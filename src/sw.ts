@@ -25,11 +25,10 @@ import { clientsClaim } from 'workbox-core';
 declare const self: ServiceWorkerGlobalScope;
 
 // Increment whenever the SW logic changes in a way that requires all
-// clients to drop their old runtime caches. Bumped to v17: journey
-// planner A→B (new /journey page) + WebRTC trip sharing (sender
-// broadcasts location every 60s, receiver sees a 'Following' view at
-// /following with the planned route + last known GPS).
-const CACHE_VERSION = 17;
+// clients to drop their old runtime caches. Bumped to v18: planned
+// route from /journey is now automatically included in trip-share
+// messages, so paired devices always know the planned itinerary.
+const CACHE_VERSION = 18;
 
 self.skipWaiting();
 clientsClaim();
