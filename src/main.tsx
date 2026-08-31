@@ -1,19 +1,21 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { HashRouter } from 'react-router-dom';
+import { BrowserRouter } from 'react-router-dom';
 import './styles/global.css';
 import 'leaflet/dist/leaflet.css';
 import App from './App';
 import { startMockServer } from '../mocks/browser';
 import './i18n';
 
-// HashRouter is used instead of BrowserRouter because the app is hosted on
-// GitHub Pages, which serves only static files. A path like /portami/settings
-// would 404 because there's no settings.html on disk. HashRouter puts routes
-// after the `#` (e.g. /portami/#/settings), so the server only ever sees
-// `/portami/` and the SPA handles routing entirely client-side. No 404 on
-// refresh, no need for a 404.html fallback, and no service-worker routing
-// quirks.
+// Must match the `base` config in vite.config.ts. Read from the same env
+// var so dev (/) and production (/portami/) work correctly.
+const basename = import.meta.env.VITE_BASE_PATH || '/';
+
+// We use BrowserRouter (clean URLs like /portami/settings) instead of
+// HashRouter. To make refresh / deep-link work on GitHub Pages, vite is
+// configured to copy dist/index.html to dist/404.html in plugins/postbuild.
+// GitHub Pages serves 404.html for any unknown path; the SPA then boots
+// from it and BrowserRouter reads the actual pathname and routes correctly.
 async function bootstrap() {
   if (import.meta.env.DEV) {
     await startMockServer();
@@ -22,9 +24,9 @@ async function bootstrap() {
   const root = createRoot(document.getElementById('root')!);
   root.render(
     <StrictMode>
-      <HashRouter>
+      <BrowserRouter basename={basename}>
         <App />
-      </HashRouter>
+      </BrowserRouter>
     </StrictMode>,
   );
 

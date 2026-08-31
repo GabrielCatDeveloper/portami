@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import path from 'node:path';
@@ -9,10 +9,26 @@ import path from 'node:path';
 // Override at build time with: VITE_BASE_PATH="/" npm run build
 const BASE_PATH = process.env.VITE_BASE_PATH ?? '/portami/';
 
+// Copy dist/index.html to dist/404.html after the build so GitHub Pages
+// can serve it as a fallback for any unknown path. The SPA boots from
+// 404.html and BrowserRouter reads the actual pathname to route correctly.
+// This is the standard pattern for SPAs on GitHub Pages with clean URLs.
+function ghPagesFallback(): Plugin {
+  return {
+    name: 'gh-pages-404-fallback',
+    apply: 'build',
+    async closeBundle() {
+      const fs = await import('node:fs/promises');
+      await fs.copyFile('dist/index.html', 'dist/404.html');
+    },
+  };
+}
+
 export default defineConfig({
   base: BASE_PATH,
   plugins: [
     react(),
+    ghPagesFallback(),
     VitePWA({
       registerType: 'autoUpdate',
       strategies: 'injectManifest',
