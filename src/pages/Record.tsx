@@ -2,15 +2,28 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { LeafletMap } from '@/components/LeafletMap';
-import { Record as RecordIcon, Stop, Trash } from '@/components/icons';
+import { Record as RecordIcon, Stop, Trash, Bus, Train, Tram } from '@/components/icons';
 import { geoWatcher } from '@/geo/watcher';
 import { getDB } from '@/storage/db';
 import { randomUUID } from '@/crypto';
 import { apiFetch } from '@/api/client';
 import { useIdentityStore } from '@/state/identity';
-import type { GPSSample, Route } from '@/api/types';
+import type { GPSSample, Route, Schedule, VehicleKind } from '@/api/types';
 
 type Phase = 'idle' | 'recording' | 'review' | 'saving';
+
+const VEHICLE_OPTIONS: Array<{ key: VehicleKind; label: string; icon: React.ReactNode }> = [
+  { key: 'bus', label: 'Bus', icon: <Bus size={20} /> },
+  { key: 'train', label: 'Tren', icon: <Train size={20} /> },
+  { key: 'tram', label: 'Tram', icon: <Tram size={20} /> },
+  { key: 'metro', label: 'Metro', icon: <Train size={20} /> },
+  { key: 'other', label: 'Otro', icon: <Bus size={20} /> },
+];
+
+const DAY_KEYS: Array<{ key: number; label: string }> = [
+  { key: 1, label: 'L' }, { key: 2, label: 'M' }, { key: 3, label: 'X' },
+  { key: 4, label: 'J' }, { key: 5, label: 'V' }, { key: 6, label: 'S' }, { key: 0, label: 'D' },
+];
 
 export default function RecordPage() {
   const { t } = useTranslation();
@@ -22,6 +35,12 @@ export default function RecordPage() {
   const [pendingCuts, setPendingCuts] = useState<Array<[number, number]>>([]);
   const [title, setTitle] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [vehicleKind, setVehicleKind] = useState<VehicleKind>('bus');
+  const [direction, setDirection] = useState('');
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [activeDays, setActiveDays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [intervalStart, setIntervalStart] = useState('08:00');
+  const [intervalEnd, setIntervalEnd] = useState('20:00');
   const recordingIdRef = useRef<string | null>(null);
   const listenerCleanupRef = useRef<(() => void) | null>(null);
   const demoTimerRef = useRef<number | null>(null);
@@ -209,6 +228,9 @@ export default function RecordPage() {
       version: 1,
       active: true,
       createdAt: Date.now(),
+      vehicleKind: vehicleKind,
+      direction: direction.trim() || undefined,
+      schedules: schedules.length > 0 ? schedules : undefined,
     };
 
     try {
@@ -389,6 +411,108 @@ export default function RecordPage() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
+          </div>
+
+          {/* Vehicle kind selector */}
+          <div className="field">
+            <label className="field-label">Tipo de vehículo</label>
+            <div className="row gap-2" style={{ flexWrap: 'wrap' }}>
+              {VEHICLE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  className={`chip ${vehicleKind === opt.key ? 'active' : ''}`}
+                  onClick={() => setVehicleKind(opt.key)}
+                >
+                  {opt.icon}
+                  <span style={{ marginLeft: 4 }}>{opt.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Direction (optional) */}
+          <div className="field">
+            <label className="field-label">Sentido (opcional)</label>
+            <input
+              className="input"
+              placeholder="Ej: Centro ↔ Aeropuerto"
+              value={direction}
+              onChange={(e) => setDirection(e.target.value)}
+            />
+          </div>
+
+          {/* Schedule editor */}
+          <div className="field">
+            <label className="field-label">Horario (opcional)</label>
+            <div className="row gap-1" style={{ flexWrap: 'wrap', marginBottom: 8 }}>
+              {DAY_KEYS.map((d) => {
+                const active = activeDays.includes(d.key);
+                return (
+                  <button
+                    key={d.key}
+                    type="button"
+                    onClick={() => setActiveDays((cur) =>
+                      cur.includes(d.key) ? cur.filter((x) => x !== d.key) : [...cur, d.key].sort()
+                    )}
+                    className={`chip ${active ? 'active' : ''}`}
+                    style={{ minWidth: 36, justifyContent: 'center' }}
+                    aria-pressed={active}
+                  >
+                    {d.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="row gap-2" style={{ alignItems: 'center' }}>
+              <input
+                type="time"
+                className="input"
+                value={intervalStart}
+                onChange={(e) => setIntervalStart(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <span className="text-muted">–</span>
+              <input
+                type="time"
+                className="input"
+                value={intervalEnd}
+                onChange={(e) => setIntervalEnd(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <button
+                type="button"
+                className="btn btn-sm"
+                onClick={() => {
+                  if (!activeDays.length) return;
+                  setSchedules((s) => [
+                    ...s,
+                    { daysOfWeek: activeDays, intervals: [{ start: intervalStart, end: intervalEnd }] },
+                  ]);
+                }}
+              >
+                Añadir
+              </button>
+            </div>
+            {schedules.length > 0 && (
+              <div className="mt-2" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {schedules.map((s, i) => (
+                  <div key={i} className="row gap-2" style={{ fontSize: 'var(--fs-sm)' }}>
+                    <span className="badge badge-info">
+                      {s.daysOfWeek.map((d) => DAY_KEYS.find((x) => x.key === d)?.label).join('')} · {s.intervals[0]?.start}–{s.intervals[0]?.end}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      style={{ padding: 0, color: 'var(--danger)' }}
+                      onClick={() => setSchedules((cur) => cur.filter((_, j) => j !== i))}
+                    >
+                      Quitar
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="row gap-3 text-sm">

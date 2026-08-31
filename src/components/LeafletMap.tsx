@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import L from 'leaflet';
-import type { Route, LatLng } from '@/api/types';
+import type { Route, LatLng, VehicleKind } from '@/api/types';
 
 // Workaround for default marker icons in bundlers
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -10,18 +10,25 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
-const _busIcon = L.divIcon({
-  className: 'portami-marker',
-  html: `<div class="portami-marker-bus"><svg width="20" height="20" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="0">
-    <rect x="4" y="6" width="15" height="12" rx="2" fill="#0f766e"/>
-    <rect x="5" y="8" width="4" height="3" rx="0.5" fill="#ccfbf1"/>
-    <rect x="11" y="8" width="4" height="3" rx="0.5" fill="#ccfbf1"/>
-    <circle cx="6" cy="20" r="1.6" fill="#0f766e"/>
-    <circle cx="14" cy="20" r="1.6" fill="#0f766e"/>
-  </div></div>`,
-  iconSize: [28, 28],
-  iconAnchor: [14, 14],
-});
+// Per-vehicle icons. Trains/trams/metro use a different colour and
+// outline to distinguish them from buses at a glance.
+const VEHICLE_COLORS: Record<VehicleKind, { bg: string; fg: string; label: string }> = {
+  bus:   { bg: '#0f766e', fg: '#ccfbf1', label: '🚌' },
+  train: { bg: '#1d4ed8', fg: '#dbeafe', label: '🚆' },
+  tram:  { bg: '#16a34a', fg: '#dcfce7', label: '🚊' },
+  metro: { bg: '#7c3aed', fg: '#ede9fe', label: '🚇' },
+  other: { bg: '#475569', fg: '#f1f5f9', label: '🚐' },
+};
+
+function vehicleIcon(kind: VehicleKind = 'bus'): L.DivIcon {
+  const c = VEHICLE_COLORS[kind] ?? VEHICLE_COLORS.bus;
+  return L.divIcon({
+    className: 'portami-marker',
+    html: `<div class="portami-marker-vehicle" style="background:${c.bg}"><span style="font-size:14px;line-height:28px">${c.label}</span></div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+  });
+}
 
 const stopIcon = L.divIcon({
   className: 'portami-marker',
@@ -37,10 +44,19 @@ const userIcon = L.divIcon({
   iconAnchor: [11, 11],
 });
 
+export function vehicleEmoji(kind: VehicleKind | undefined): string {
+  return VEHICLE_COLORS[kind ?? 'bus'].label;
+}
+
+export function vehicleColor(kind: VehicleKind | undefined): string {
+  return VEHICLE_COLORS[kind ?? 'bus'].bg;
+}
+
 export type ActiveBusMarker = {
   tripId: string;
   anonId: string;
   position: LatLng;
+  vehicleKind?: VehicleKind;
 };
 
 export type MapLayer = {
@@ -104,8 +120,9 @@ export function LeafletMap({
     const allLatLngs: L.LatLng[] = [];
     routes.forEach((r, i) => {
       const latlngs = r.polyline.map(([la, ln]) => L.latLng(la, ln));
+      const colour = vehicleColor(r.vehicleKind);
       const line = L.polyline(latlngs, {
-        color: i === 0 ? '#0f766e' : '#94a3b8',
+        color: i === 0 ? colour : '#94a3b8',
         weight: i === 0 ? 5 : 3,
         opacity: i === 0 ? 1 : 0.6,
       }).addTo(layer);
@@ -157,15 +174,20 @@ export function LeafletMap({
     }
   }, [userPosition, followUser]);
 
-  // Active bus markers (other users currently riding this route)
+  // Active bus/train markers (other users currently riding this route).
+  // Each marker takes its route's vehicle kind so trains/trams look
+  // visually distinct from buses on the map.
   useEffect(() => {
     const layer = busLayerRef.current;
     if (!layer) return;
     layer.clearLayers();
     if (!activeBuses) return;
     for (const b of activeBuses) {
-      const marker = L.marker([b.position.lat, b.position.lng], { icon: _busIcon })
-        .bindTooltip(`🚌 · #${b.anonId.slice(0, 6)}`)
+      const kind = (b as any).vehicleKind as VehicleKind | undefined;
+      const icon = vehicleIcon(kind ?? 'bus');
+      const label = vehicleEmoji(kind);
+      const marker = L.marker([b.position.lat, b.position.lng], { icon })
+        .bindTooltip(`${label} · #${b.anonId.slice(0, 6)}`)
         .addTo(layer);
       void marker;
     }

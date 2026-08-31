@@ -14,6 +14,7 @@ type ActiveTrip = {
 const trips = new Map<string, ActiveTrip>();
 const proposals = new Map<string, any>();
 const detours: any[] = [];
+const incidents: any[] = [];
 
 export const handlers = [
   // List nearby routes (filter by point-to-polyline proximity)
@@ -182,5 +183,36 @@ export const handlers = [
     const body = (await request.json()) as any;
     detours.push({ id: `d-${Math.random().toString(36).slice(2, 6)}`, ts: Date.now(), ...body });
     return new HttpResponse(null, { status: 201 });
+  }),
+
+  // Incidents
+  http.post('/api/incidents', async ({ request }) => {
+    await delay(150);
+    const body = (await request.json()) as any;
+    const id = `i-${Math.random().toString(36).slice(2, 6)}`;
+    incidents.push({ id, ts: Date.now(), resolved: false, ...body });
+    return HttpResponse.json({ id }, { status: 201 });
+  }),
+
+  http.get('/api/incidents', async ({ request }) => {
+    await delay(100);
+    const url = new URL(request.url);
+    const routeId = url.searchParams.get('routeId');
+    const now = Date.now();
+    const visible = incidents.filter((i) =>
+      !i.resolved && (i.endsAt === undefined || i.endsAt > now) &&
+      (!routeId || i.routeId === routeId)
+    );
+    return HttpResponse.json({ incidents: visible });
+  }),
+
+  http.post('/api/incidents/:id/resolve', async ({ params }) => {
+    await delay(100);
+    const i = incidents.find((x) => x.id === params.id);
+    if (i) {
+      i.resolved = true;
+      i.resolvedAt = Date.now();
+    }
+    return HttpResponse.json({ ok: true });
   }),
 ];

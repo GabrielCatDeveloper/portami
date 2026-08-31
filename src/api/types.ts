@@ -11,6 +11,20 @@ export type Stop = {
   lng: number;
 };
 
+/**
+ * Weekly time window. `daysOfWeek` uses 0=Sun..6=Sat (Date convention).
+ * `intervals` are local-time HH:MM ranges.
+ * A route is "active at moment X" iff:
+ *   - X.dayOfWeek is in daysOfWeek, AND
+ *   - there is some interval [start, end] such that start ≤ X.h:m ≤ end
+ */
+export type Schedule = {
+  daysOfWeek: number[]; // [0..6]
+  intervals: Array<{ start: string; end: string }>; // "HH:MM"
+};
+
+export type VehicleKind = 'bus' | 'train' | 'tram' | 'metro' | 'other';
+
 export type Route = {
   id: string;
   name: string;
@@ -20,7 +34,37 @@ export type Route = {
   version: number;
   active: boolean;
   createdAt?: number;
-  vehicleKind?: 'bus' | 'train' | 'tram' | 'metro' | 'other';
+  vehicleKind?: VehicleKind;
+  /** Weekly timetables. Empty/missing -> always active. */
+  schedules?: Schedule[];
+  /** Operator / company name, free text */
+  operator?: string;
+  /** Direction label (e.g. "Centro ↔ Aeropuerto") */
+  direction?: string;
+};
+
+/**
+ * Temporary service incident. Examples: cancellation, delay, diversion.
+ *
+ * Lifecycle:
+ *   - If `endsAt` is set, the incident auto-expires at that time.
+ *   - Otherwise it persists until a user marks it resolved.
+ *   - The app hides incidents where resolved=true OR endsAt < now().
+ */
+export type IncidentKind = 'cancellation' | 'delay' | 'diversion' | 'other';
+export type Incident = {
+  id: string;
+  routeId: string;
+  kind: IncidentKind;
+  reason: string;            // free text, e.g. "Manifestación en Sol"
+  reportedBy: string;        // anonId
+  ts: number;
+  /** Optional scheduled end (ISO ms). When expires, incident auto-hides. */
+  endsAt?: number;
+  /** True once a user has marked it resolved. */
+  resolved: boolean;
+  resolvedBy?: string;
+  resolvedAt?: number;
 };
 
 export type GPSSample = {

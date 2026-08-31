@@ -10,15 +10,21 @@
   box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
 
-.portami-marker-bus {
+.portami-marker-vehicle {
   width: 28px;
   height: 28px;
-  background: var(--brand-600);
   border: 2px solid white;
   border-radius: 50%;
   display: grid;
   place-items: center;
   box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  text-align: center;
+}
+
+.portami-marker-vehicle span {
+  display: block;
+  line-height: 24px;
+  font-size: 16px;
 }
 
 .portami-marker-user {

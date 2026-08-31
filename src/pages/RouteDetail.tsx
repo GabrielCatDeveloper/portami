@@ -4,14 +4,94 @@ import { useTranslation } from 'react-i18next';
 import { apiFetch } from '@/api/client';
 import { listProposals, voteOnProposal } from '@/api/proposals';
 import { fetchActiveBusesOnRoute, type ActiveBus } from '@/api/activeBuses';
+import { listIncidents, reportIncident, resolveIncident } from '@/api/incidents';
 import { useTripStore } from '@/state/trip';
 import { useIdentityStore } from '@/state/identity';
-import type { Route, RouteEditProposal } from '@/api/types';
-import { LeafletMap } from '@/components/LeafletMap';
-import { Navigation, ChevronLeft, Edit, Map as MapIcon, Check, X, AlertTriangle, Bus, Clock } from '@/components/icons';
+import type { Route, RouteEditProposal, Incident, IncidentKind } from '@/api/types';
+import { LeafletMap, vehicleEmoji, vehicleColor } from '@/components/LeafletMap';
+import { Navigation, ChevronLeft, Edit, Map as MapIcon, Check, X, AlertTriangle, Bus, Clock, Train, Plus } from '@/components/icons';
 import { formatDistance, polylineLength } from '@/geo/distance';
 import { estimateStopEtas, formatEta } from '@/geo/eta';
+import { isRouteActiveAt, summarizeSchedule, isIncidentVisible, incidentLabel } from '@/geo/schedule';
 import { notify } from '@/notify';
+
+function IncidentForm({
+  routeId,
+  anonId,
+  onCreated,
+}: {
+  routeId: string;
+  anonId: string;
+  onCreated: (inc: Incident) => void;
+}) {
+  const [kind, setKind] = useState<IncidentKind>('delay');
+  const [reason, setReason] = useState('');
+  const [duration, setDuration] = useState<number>(30); // minutes
+  const [submitting, setSubmitting] = useState(false);
+  const submit = async () => {
+    if (!reason.trim()) return;
+    setSubmitting(true);
+    try {
+      const endsAt = Date.now() + duration * 60_000;
+      const res = await reportIncident({
+        routeId, kind, reason: reason.trim(), reportedBy: anonId, endsAt,
+      });
+      onCreated({
+        id: res.id, routeId, kind, reason: reason.trim(), reportedBy: anonId,
+        ts: Date.now(), endsAt, resolved: false,
+      });
+      setReason('');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  return (
+    <div className="mt-3" style={{ display: 'flex', flexDirection: 'column', gap: 8, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+      <div className="row gap-2" style={{ flexWrap: 'wrap' }}>
+        {(['cancellation', 'delay', 'diversion', 'other'] as const).map((k) => (
+          <button
+            key={k}
+            type="button"
+            className={`chip ${kind === k ? 'active' : ''}`}
+            onClick={() => setKind(k)}
+          >
+            {k === 'cancellation' ? '🚫 Cancelado' :
+             k === 'delay' ? '⏱️ Retraso' :
+             k === 'diversion' ? '↪️ Desvío' : '⚠️ Otro'}
+          </button>
+        ))}
+      </div>
+      <input
+        className="input"
+        placeholder="Describe brevemente la incidencia…"
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+      />
+      <div className="row gap-2" style={{ alignItems: 'center' }}>
+        <span className="text-sm text-muted">Duración estimada:</span>
+        <input
+          type="number"
+          min={5}
+          max={720}
+          value={duration}
+          onChange={(e) => setDuration(parseInt(e.target.value || '30', 10))}
+          style={{ width: 80 }}
+          className="input"
+        />
+        <span className="text-sm text-muted">min</span>
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          onClick={() => void submit()}
+          disabled={!reason.trim() || submitting}
+          style={{ marginLeft: 'auto' }}
+        >
+          Reportar
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function RouteDetailPage() {
   const { id } = useParams();
@@ -23,6 +103,8 @@ export default function RouteDetailPage() {
   const [loading, setLoading] = useState(true);
   const [voting, setVoting] = useState<string | null>(null);
   const [activeBuses, setActiveBuses] = useState<ActiveBus[]>([]);
+  const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [showIncidentForm, setShowIncidentForm] = useState(false);
   const startTrip = useTripStore((s) => s.startTrip);
   const anonId = useIdentityStore((s) => s.anonId);
   const myPubKey = useIdentityStore((s) => s.identity?.pubKey);
@@ -53,6 +135,9 @@ export default function RouteDetailPage() {
       if (cancelled) return;
       fetchActiveBusesOnRoute(id)
         .then((b) => !cancelled && setActiveBuses(b))
+        .catch(() => {});
+      listIncidents(id)
+        .then((i) => !cancelled && setIncidents(i))
         .catch(() => {});
     };
     tick();
@@ -120,6 +205,8 @@ export default function RouteDetailPage() {
   }
 
   const pendingCount = pending.filter((p) => p.status === 'pending').length;
+  const visibleIncidents = incidents.filter((i) => isIncidentVisible(i));
+  const isActiveNow = isRouteActiveAt(route);
 
   // Compute per-stop ETAs from the first active bus (most recent position)
   const primaryBus = activeBuses[0];
@@ -173,13 +260,91 @@ export default function RouteDetailPage() {
       <div className="page" style={{ paddingTop: 16 }}>
         <div className="row mb-3">
           <div style={{ flex: 1 }}>
-            <h1 style={{ fontSize: 'var(--fs-xl)' }}>{route.name}</h1>
+            <h1 style={{ fontSize: 'var(--fs-xl)' }}>
+              {vehicleEmoji(route.vehicleKind)} {route.name}
+            </h1>
             <div className="text-muted text-sm mt-2">
               {t('routes.stops', { n: route.stops.length })} · {formatDistance(polylineLength(route.polyline))} · v{route.version}
+              {route.direction ? ` · ${route.direction}` : ''}
             </div>
+            {route.schedules && route.schedules.length > 0 && (
+              <div className="text-sm mt-2" style={{ color: isActiveNow ? 'var(--success)' : 'var(--text-muted)' }}>
+                {isActiveNow ? '🟢 ' : '⚫ '}{summarizeSchedule(route)}
+              </div>
+            )}
           </div>
-          <span className="badge badge-brand">{route.vehicleKind ?? 'bus'}</span>
+          <span
+            className="badge"
+            style={{ background: vehicleColor(route.vehicleKind), color: 'white' }}
+          >
+            {route.vehicleKind ?? 'bus'}
+          </span>
         </div>
+
+        {/* Incidents panel */}
+        {(visibleIncidents.length > 0 || showIncidentForm) && (
+          <section className="card mb-3" style={{ borderLeft: '4px solid #dc2626' }}>
+            <div className="card-header">
+              <div className="card-title">⚠️ Incidencias ({visibleIncidents.length})</div>
+              <button
+                type="button"
+                className="btn btn-sm btn-ghost"
+                onClick={() => setShowIncidentForm((v) => !v)}
+              >
+                {showIncidentForm ? 'Cerrar' : <><Plus size={14} /> Reportar</>}
+              </button>
+            </div>
+            {visibleIncidents.length > 0 && (
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {visibleIncidents.map((i) => (
+                  <li key={i.id} className="row gap-2" style={{ fontSize: 'var(--fs-sm)', alignItems: 'flex-start' }}>
+                    <span>{i.kind === 'cancellation' ? '🚫' : i.kind === 'delay' ? '⏱️' : i.kind === 'diversion' ? '↪️' : '⚠️'}</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600 }}>{incidentLabel(i.kind)}</div>
+                      <div className="text-xs text-muted">{i.reason}</div>
+                      {i.endsAt && (
+                        <div className="text-xs text-muted">
+                          hasta {new Date(i.endsAt).toLocaleTimeString()}
+                        </div>
+                      )}
+                    </div>
+                    {myPubKey && myPubKey === i.reportedBy ? (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-ghost"
+                        onClick={async () => {
+                          await resolveIncident(i.id!);
+                          setIncidents((cur) => cur.filter((x) => x.id !== i.id));
+                        }}
+                      >
+                        Resolver
+                      </button>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {showIncidentForm && (
+              <IncidentForm
+                routeId={route.id}
+                anonId={anonId ?? 'unknown'}
+                onCreated={(inc) => {
+                  setIncidents((cur) => [...cur, inc]);
+                  setShowIncidentForm(false);
+                }}
+              />
+            )}
+          </section>
+        )}
+        {!showIncidentForm && visibleIncidents.length === 0 && (
+          <button
+            type="button"
+            className="btn btn-block mb-3"
+            onClick={() => setShowIncidentForm(true)}
+          >
+            <Plus size={14} /> Reportar incidencia
+          </button>
+        )}
 
         {/* Live ETA panel */}
         {primaryBus && etas.length > 0 && (
