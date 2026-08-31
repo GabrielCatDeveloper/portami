@@ -63,7 +63,17 @@ jobs:
 
       - name: Build (production)
         env:
-          VITE_BASE_PATH: /
+          # App is served from GitHub Pages under the repo's default path
+          # (https://<user>.github.io/<repo>/), so VITE_BASE_PATH must
+          # include the repo name as a prefix. For portami served at
+          # https://gabrielcatdeveloper.github.io/portami/ use
+          # '/portami/'.
+          #
+          # If you ever rename the repo, serve from a custom domain, or
+          # switch to a User/Org site (gabrielcatdeveloper.github.io root),
+          # change this to '/' and update the GitHub Pages source folder
+          # accordingly.
+          VITE_BASE_PATH: /portami/
           # Deno Deploy server URL — the app polls /health and routes
           # API calls here. Empty → app falls back to MSW mocks.
           # NOTE: must point to a deployment with the CORS middleware

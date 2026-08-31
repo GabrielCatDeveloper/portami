@@ -25,12 +25,13 @@ import { clientsClaim } from 'workbox-core';
 declare const self: ServiceWorkerGlobalScope;
 
 // Increment whenever the SW logic changes in a way that requires all
-// clients to drop their old runtime caches. Bumped to v25: previous
-// bump to v24 produced a build that failed the CI manifest sanity
-// check ('manifest.start_url is not /portami/'); the workflow's
-// hardcoded check has now been relaxed to accept '/' as well as
-// '/portami/'. This bump forces the build to re-run.
-const CACHE_VERSION = 25;
+// clients to drop their old runtime caches. Bumped to v26: previous
+// build kept VITE_BASE_PATH=/ but GitHub Pages was still serving
+// from the prod/portami/ subfolder, so all asset URLs returned 404
+// from the browser. Reverted to VITE_BASE_PATH=/portami/ to match
+// the GH Pages config; the new bundle's asset URLs align with the
+// served path again.
+const CACHE_VERSION = 26;
 
 self.skipWaiting();
 clientsClaim();
