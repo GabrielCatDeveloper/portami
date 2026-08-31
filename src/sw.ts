@@ -25,10 +25,11 @@ import { clientsClaim } from 'workbox-core';
 declare const self: ServiceWorkerGlobalScope;
 
 // Increment whenever the SW logic changes in a way that requires all
-// clients to drop their old runtime caches. Bumped to v18: planned
-// route from /journey is now automatically included in trip-share
-// messages, so paired devices always know the planned itinerary.
-const CACHE_VERSION = 18;
+// clients to drop their old runtime caches. Bumped to v19: /journey
+// journey cards now have an 'Iniciar este viaje' button that starts
+// the trip on the first route of the plan and attaches the plan to
+// the trip (so the friend sees the itinerary on the share).
+const CACHE_VERSION = 19;
 
 self.skipWaiting();
 clientsClaim();

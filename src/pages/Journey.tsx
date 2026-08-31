@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { planJourney } from '@/api/journey';
+import { useTripStore } from '@/state/trip';
 import { geoWatcher } from '@/geo/watcher';
 import { LeafletMap } from '@/components/LeafletMap';
 import {
@@ -12,10 +13,10 @@ import {
   PersonStanding,
   Bus,
   Plus,
-  Share,
+  Play,
 } from '@/components/icons';
 import { formatDistance } from '@/geo/distance';
-import type { Journey, JourneyStep, LatLng, VehicleKind } from '@/api/types';
+import type { Journey, JourneyStep, LatLng, VehicleKind, Route } from '@/api/types';
 
 type Phase = 'idle' | 'locating' | 'planning' | 'results' | 'error';
 
@@ -245,6 +246,8 @@ export default function JourneyPage() {
 
 function JourneyCard({ journey }: { journey: Journey }) {
   const [expanded, setExpanded] = useState(false);
+  const navigate = useNavigate();
+  const startTrip = useTripStore((s) => s.startTrip);
   const minutes = Math.round(journey.totalDurationS / 60);
   const transfers = Math.max(0, journey.boardings - 1);
   const walkSpeed = journey.maxRequiredWalkSpeedMs;
@@ -252,6 +255,27 @@ function JourneyCard({ journey }: { journey: Journey }) {
   const walkLabel = walkKind === 'stroll' ? '🥾 Tranquilo' :
                    walkKind === 'brisk' ? '🚶 Rápido' :
                    '🏃 ¡A correr!';
+
+  // First ride step defines the route the user will start on
+  const firstRide = journey.steps.find((s) => s.kind === 'ride') as Extract<JourneyStep, { kind: 'ride' }> | undefined;
+
+  const handleStart = async () => {
+    if (!firstRide) return;
+    const syntheticRoute: Route = {
+      id: firstRide.routeId,
+      name: firstRide.routeName,
+      stops: journey.steps
+        .filter((s) => s.kind === 'ride')
+        .flatMap((s) => (s.kind === 'ride' ? [s.fromStopId, s.toStopId] : []))
+        .map((id) => ({ id, name: id, lat: 0, lng: 0 })),
+      polyline: [],
+      createdBy: 'journey-planner',
+      version: 1,
+      active: true,
+    };
+    await startTrip(syntheticRoute, { plannedRoute: journey });
+    navigate('/trip');
+  };
 
   return (
     <article className="card">
@@ -284,6 +308,16 @@ function JourneyCard({ journey }: { journey: Journey }) {
       >
         {expanded ? 'Ocultar pasos' : 'Ver pasos'}
       </button>
+
+      {firstRide && (
+        <button
+          type="button"
+          className="btn btn-primary btn-block mt-2"
+          onClick={() => void handleStart()}
+        >
+          <Play size={16} /> Iniciar este viaje
+        </button>
+      )}
 
       {expanded && (
         <ol style={{ listStyle: 'none', padding: 0, margin: '12px 0 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
