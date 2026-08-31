@@ -25,10 +25,10 @@ import { clientsClaim } from 'workbox-core';
 declare const self: ServiceWorkerGlobalScope;
 
 // Increment whenever the SW logic changes in a way that requires all
-// clients to drop their old runtime caches. Bumped to v7: Sync page
-// buttons now stack vertically on mobile, and Record page has a
-// "demo mode" so users without GPS can still test the flow.
-const CACHE_VERSION = 7;
+// clients to drop their old runtime caches. Bumped to v8: GitHub link
+// in Settings now points to the actual repo
+// (GabrielCatDeveloper/portami) instead of github.com generic.
+const CACHE_VERSION = 8;
 
 self.skipWaiting();
 clientsClaim();

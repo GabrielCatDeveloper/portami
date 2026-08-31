@@ -2,17 +2,32 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SUPPORTED_LANGUAGES, LANGUAGE_LABELS } from '@/i18n';
 import { useIdentityStore } from '@/state/identity';
-import { Key, Copy, AlertTriangle, Download, Upload } from '@/components/icons';
-import { exportMyRoutesAsGeoJSON, importGeoJSON, downloadFile, pickFile, type ImportMode } from '@/io/geojson';
+import { Key, Copy, Download, Upload, AlertTriangle, ChevronDown } from '@/components/icons';
+import {
+  exportMyRoutesAsGeoJSON,
+  importGeoJSON,
+  downloadFile,
+  pickFile,
+} from '@/io/geojson';
+import {
+  exportIdentityBackup,
+  importIdentityBackup,
+  downloadBackup,
+  pickBackupFile,
+} from '@/io/identityBackup';
 
 export default function SettingsPage() {
   const { t, i18n } = useTranslation();
   const identity = useIdentityStore((s) => s.identity);
   const anonId = useIdentityStore((s) => s.anonId);
   const regenerate = useIdentityStore((s) => s.regenerate);
+  const importFromJwk = useIdentityStore((s) => s.importFromJwk);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<string | null>(null);
+  const [lastError, setLastError] = useState<string | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showDanger, setShowDanger] = useState(false);
 
   if (!identity) return null;
 
@@ -22,15 +37,76 @@ export default function SettingsPage() {
     setTimeout(() => setCopied(false), 1500);
   };
 
+  const flash = (msg: string, isError = false) => {
+    setLastResult(isError ? null : msg);
+    setLastError(isError ? msg : null);
+    setTimeout(() => {
+      setLastResult(null);
+      setLastError(null);
+    }, 5000);
+  };
+
+  // ---- Identity backup / restore ----
+  const onExportIdentity = async () => {
+    const passphrase = window.prompt(
+      'Elige una contraseña para proteger el archivo (mínimo 8 caracteres). ' +
+        'La necesitarás para volver a importarla. NO la pierdas.',
+    );
+    if (!passphrase) return;
+    if (passphrase.length < 8) {
+      flash('La contraseña debe tener al menos 8 caracteres', true);
+      return;
+    }
+    const confirm = window.prompt('Repite la contraseña para confirmar:');
+    if (confirm !== passphrase) {
+      flash('Las contraseñas no coinciden', true);
+      return;
+    }
+    setBusy('export-id');
+    try {
+      const backup = await exportIdentityBackup({
+        pubKey: identity.pubKey,
+        anonId: anonId ?? '',
+        privKeyJwk: identity.privKeyJwk,
+        passphrase,
+      });
+      downloadBackup(backup, anonId ?? 'me');
+      flash('Identidad exportada. Guarda el archivo en un lugar seguro.');
+      // Clear passphrase from memory as soon as possible
+    } catch (e) {
+      flash(`Error: ${e instanceof Error ? e.message : e}`, true);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const onImportIdentity = async () => {
+    const file = await pickBackupFile();
+    if (!file) return;
+    const passphrase = window.prompt('Introduce la contraseña del archivo de backup:');
+    if (!passphrase) return;
+    setBusy('import-id');
+    try {
+      const jwk = await importIdentityBackup({ backup: file, passphrase });
+      await importFromJwk(jwk, file.pubKey);
+      flash(`Identidad importada correctamente como #${file.anonId}`);
+    } catch (e) {
+      flash(`Error: ${e instanceof Error ? e.message : e}`, true);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // ---- GeoJSON routes ----
   const onExport = async () => {
     setBusy('export');
     try {
       const data = await exportMyRoutesAsGeoJSON();
       const json = JSON.stringify(data, null, 2);
-      downloadFile(json, `portami-routes-${anonId ?? 'me'}.geojson`);
-      setLastResult(`Exportadas ${data.features.length} entidades`);
+      downloadFile(json, `portami-rutas-${anonId ?? 'me'}.geojson`);
+      flash(`Exportadas ${data.features.length} entidades`);
     } catch (e) {
-      setLastResult(`Error: ${e}`);
+      flash(`Error: ${e}`, true);
     } finally {
       setBusy(null);
     }
@@ -44,12 +120,12 @@ export default function SettingsPage() {
       const text = await file.text();
       const json = JSON.parse(text);
       const res = await importGeoJSON(json, {});
-      setLastResult(
+      flash(
         `${res.imported} importadas, ${res.replaced} reemplazadas, ${res.merged} fusionadas, ${res.skipped} mantenidas` +
-        (res.readonly ? ' (sin firma válida → solo lectura)' : ''),
+          (res.readonly ? ' (sin firma válida → solo lectura)' : ''),
       );
     } catch (e) {
-      setLastResult(`Error: ${e}`);
+      flash(`Error: ${e}`, true);
     } finally {
       setBusy(null);
     }
@@ -83,102 +159,185 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      {/* Identity */}
+      {/* Identity — the headline block */}
       <section className="card mb-4">
         <div className="card-header">
           <div className="list-item-icon"><Key size={20} /></div>
           <div style={{ flex: 1 }}>
-            <div className="card-title">{t('settings.identity')}</div>
-            <div className="card-subtitle">{t('settings.privacy')}</div>
+            <div className="card-title">Tu identidad</div>
+            <div className="card-subtitle">Anónima, generada en este dispositivo. Sin cuentas ni servidores.</div>
           </div>
         </div>
 
-        <div className="field">
-          <label className="field-label">{t('settings.anonId')}</label>
-          <div style={{
-            padding: '12px 14px',
+        <div
+          style={{
+            padding: '16px',
             background: 'var(--bg-subtle)',
             borderRadius: 'var(--r-md)',
-            fontFamily: 'var(--font-mono)',
-            fontWeight: 700,
-            fontSize: 'var(--fs-md)',
-            color: 'var(--brand-700)',
             textAlign: 'center',
-          }}>
-            #{anonId}
-          </div>
-          <div className="field-hint">Tu ID corto derivado de tu clave pública. Estable entre dispositivos.</div>
-        </div>
-
-        <div className="field">
-          <label className="field-label">{t('settings.pubKey')}</label>
-          <div className="row gap-2">
-            <code style={{
-              flex: 1,
-              padding: '12px 14px',
-              background: 'var(--bg-subtle)',
-              borderRadius: 'var(--r-md)',
-              fontSize: 'var(--fs-xs)',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}>
-              {identity.pubKey}
-            </code>
-            <button type="button" className="btn btn-sm" onClick={copyPub}>
-              <Copy size={16} /> {copied ? '✓' : ''}
-            </button>
-          </div>
-        </div>
-
-        <div className="row gap-2">
-          <button type="button" className="btn flex-1">
-            {t('settings.exportPrivate')}
-          </button>
-          <button type="button" className="btn flex-1">
-            {t('settings.importPrivate')}
-          </button>
-        </div>
-
-        <div className="divider" />
-
-        <button
-          type="button"
-          className="btn btn-danger btn-block"
-          onClick={async () => {
-            if (confirm(t('settings.regenerateWarn'))) await regenerate();
+            marginBottom: '12px',
           }}
         >
-          <AlertTriangle size={16} /> {t('settings.regenerate')}
-        </button>
-      </section>
-
-      {/* Import/Export routes */}
-      <section className="card mb-4">
-        <div className="card-header">
-          <div className="card-title">{t('settings.exportRoutes')}</div>
+          <div className="text-xs text-muted" style={{ textTransform: 'uppercase', letterSpacing: 1 }}>
+            Tu ID anónimo
+          </div>
+          <div
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontWeight: 800,
+              fontSize: 28,
+              color: 'var(--brand-700)',
+              marginTop: 4,
+              letterSpacing: 1,
+            }}
+          >
+            #{anonId}
+          </div>
+          <div className="text-xs text-muted mt-2">
+            Este es tu identidad pública. Otros usuarios la ven cuando compartes un viaje o una ruta.
+          </div>
         </div>
-        <div className="row gap-2">
+
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+          }}
+        >
           <button
             type="button"
-            className="btn flex-1"
+            className="btn btn-block"
+            disabled={busy === 'export-id'}
+            onClick={() => void onExportIdentity()}
+          >
+            <Download size={18} /> Exportar mi identidad
+          </button>
+          <button
+            type="button"
+            className="btn btn-block"
+            disabled={busy === 'import-id'}
+            onClick={() => void onImportIdentity()}
+          >
+            <Upload size={18} /> Importar mi identidad
+          </button>
+        </div>
+
+        {lastResult && (
+          <div className="banner banner-success mt-3 text-sm">{lastResult}</div>
+        )}
+        {lastError && (
+          <div className="banner banner-danger mt-3 text-sm">{lastError}</div>
+        )}
+
+        {/* Advanced — hidden by default */}
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm mt-3"
+          style={{ width: '100%', justifyContent: 'space-between' }}
+          onClick={() => setShowAdvanced((v) => !v)}
+        >
+          <span>Avanzado</span>
+          <ChevronDown
+            size={16}
+            style={{ transform: showAdvanced ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
+          />
+        </button>
+
+        {showAdvanced && (
+          <div className="mt-3" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="field">
+              <label className="field-label">Clave pública (hex)</label>
+              <div className="row gap-2">
+                <code
+                  style={{
+                    flex: 1,
+                    padding: '12px 14px',
+                    background: 'var(--bg-subtle)',
+                    borderRadius: 'var(--r-md)',
+                    fontSize: 'var(--fs-xs)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {identity.pubKey}
+                </code>
+                <button type="button" className="btn btn-sm" onClick={copyPub}>
+                  <Copy size={16} /> {copied ? '✓' : ''}
+                </button>
+              </div>
+              <div className="field-hint">
+                Solo necesaria para auditoría o soporte técnico. No la compartas si no sabes para qué sirve.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Danger zone — hidden by default */}
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm mt-2"
+          style={{ width: '100%', justifyContent: 'space-between', color: 'var(--danger)' }}
+          onClick={() => setShowDanger((v) => !v)}
+        >
+          <span>Zona peligrosa</span>
+          <ChevronDown
+            size={16}
+            style={{ transform: showDanger ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
+          />
+        </button>
+
+        {showDanger && (
+          <div className="mt-3">
+            <p className="text-sm text-muted mb-2">
+              Regenerar tu identidad la invalidará. Perderás reputación y se desconectarán tus dispositivos emparejados.
+              Esta acción no se puede deshacer.
+            </p>
+            <button
+              type="button"
+              className="btn btn-danger btn-block"
+              onClick={async () => {
+                if (confirm('¿Seguro que quieres regenerar tu identidad? No se puede deshacer.')) {
+                  await regenerate();
+                }
+              }}
+            >
+              <AlertTriangle size={16} /> Regenerar identidad
+            </button>
+          </div>
+        )}
+      </section>
+
+      {/* GeoJSON routes */}
+      <section className="card mb-4">
+        <div className="card-header">
+          <div className="card-title">Mis rutas</div>
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+          }}
+        >
+          <button
+            type="button"
+            className="btn btn-block"
             disabled={busy === 'export'}
             onClick={() => void onExport()}
           >
-            <Download size={16} /> GeoJSON
+            <Download size={18} /> Exportar como GeoJSON
           </button>
           <button
             type="button"
-            className="btn flex-1"
+            className="btn btn-block"
             disabled={busy === 'import'}
             onClick={() => void onImport()}
           >
-            <Upload size={16} /> {t('settings.importGeoJSON')}
+            <Upload size={18} /> Importar GeoJSON
           </button>
         </div>
-        {lastResult && (
-          <div className="banner banner-info mt-3 text-sm">{lastResult}</div>
-        )}
       </section>
 
       {/* Sync shortcuts */}
@@ -223,7 +382,7 @@ export default function SettingsPage() {
           {t('settings.version', { v: '0.1.0' })}
         </div>
         <a
-          href="https://github.com/"
+          href="https://github.com/GabrielCatDeveloper/portami"
           target="_blank"
           rel="noopener"
           className="btn btn-ghost btn-sm mt-2"
