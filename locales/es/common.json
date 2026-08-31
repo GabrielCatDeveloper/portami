@@ -75,6 +75,18 @@
     "success": "¡Conectado! Recibirás el viaje en directo.",
     "error": "No se pudo completar la conexión"
   },
+  "testing": {
+    "title": "Modo testing",
+    "subtitle": "Activa este modo para usar portami con datos simulados. Útil para demos o si el servidor no responde.",
+    "enable": "Activar modo testing",
+    "enableHint": "Cuando esté activo, todos los datos del servidor vienen de mocks locales y puedes elegir si el GPS es real o simulado.",
+    "databaseNote": "No se borrará nada de tu base de datos local al activar o desactivar este modo.",
+    "gps": "Fuente de GPS",
+    "gpsReal": "Real (navigator.geolocation)",
+    "gpsSimulated": "Simulado (recorrido aleatorio por Madrid)",
+    "applied": "Modo testing aplicado. Recarga la pestaña si ya tienes la app abierta.",
+    "reloadToApply": "Recarga para aplicar"
+  },
   "routes": {
     "list": "Rutas",
     "nearYou": "Cerca de ti",
