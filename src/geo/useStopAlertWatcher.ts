@@ -1,12 +1,18 @@
 // Stop alert trigger: monitors GPS samples, fires strong alerts when
-// the bus is within triggerDistanceM of an alert's stop, and marks the
-// alert as triggered so it doesn't fire repeatedly.
+// the bus is within the configured threshold of an alert's stop.
 //
-// Lives in Trip page (or any component that has access to the current
-// route + last sample + alert list).
+// Two trigger modes (per alert):
+//   - triggerMinutes: fire when ETA to the stop ≤ N minutes. ETA is
+//     computed from current speed (or a sensible default if speed is
+//     0 / missing). This adapts to traffic — see ALERT_TRAFFIC_* below.
+//   - triggerDistanceM: fire when within N meters. Used as a fallback
+//     when the bus is stopped and the ETA would otherwise be huge.
+//
+// The alert is marked triggered in IndexedDB so it only fires once per
+// trip. `resetTriggered(routeId)` is called when a new trip starts.
 
 import { useEffect, useRef } from 'react';
-import type { GPSSample, Route, Stop } from '@/api/types';
+import type { GPSSample, Route } from '@/api/types';
 import { haversine } from '@/geo/distance';
 import { listAlertsForRoute, markTriggered, type StopAlert } from '@/storage/stopAlerts';
 import { alertUser } from '@/notify/alert';
@@ -18,6 +24,32 @@ type Options = {
   /** When false, we don't fire (trip not active). */
   enabled: boolean;
 };
+
+/** Speed used when GPS reports 0 / unknown. Slightly below urban avg. */
+const ALERT_DEFAULT_SPEED_MS = 7; // ~25 km/h
+/**
+ * Floor for ETA computation. In a traffic jam (speed=0.3 m/s) we
+ * don't want the alert to fire 30 min early because the driver might
+ * move again in 10 seconds. Capping at 2 m/s keeps the fire distance
+ * within a sensible range (e.g. 1 min warning → at most 120 m).
+ */
+const ALERT_TRAFFIC_FLOOR_MS = 2; // ~7 km/h, slow traffic
+const MAX_TRIGGER_DISTANCE_M = 3000; // hard cap so we don't fire 5 km away
+
+export function shouldFire(alert: StopAlert, distanceM: number, speedMs: number | undefined): boolean {
+  // Time-based: ETA in minutes
+  if (alert.triggerMinutes != null) {
+    const v = speedMs && speedMs > 0 ? speedMs : ALERT_DEFAULT_SPEED_MS;
+    const effective = Math.max(v, ALERT_TRAFFIC_FLOOR_MS);
+    const etaMin = distanceM / effective / 60;
+    if (etaMin <= alert.triggerMinutes) return true;
+  }
+  // Distance-based fallback
+  if (alert.triggerDistanceM != null) {
+    if (distanceM <= alert.triggerDistanceM) return true;
+  }
+  return false;
+}
 
 export function useStopAlertWatcher({ route, sample, enabled }: Options): {
   alerts: StopAlert[];
@@ -58,18 +90,25 @@ export function useStopAlertWatcher({ route, sample, enabled }: Options): {
         { lat: sample.lat, lng: sample.lng },
         { lat: stop.lat, lng: stop.lng },
       );
-      if (distanceM <= alert.triggerDistanceM) {
-        // Fire the strong alert
+      // Hard cap: if you're more than MAX_TRIGGER_DISTANCE_M away, the
+      // alert is silent no matter the mode. Prevents firing half a city
+      // away when the user picks a long time warning.
+      if (distanceM > MAX_TRIGGER_DISTANCE_M) continue;
+      if (shouldFire(alert, distanceM, sample.speed)) {
+        const etaMin = sample.speed && sample.speed > 0
+          ? distanceM / Math.max(sample.speed, ALERT_TRAFFIC_FLOOR_MS) / 60
+          : Infinity;
+        const distStr = etaMin !== Infinity
+          ? `Estás a ${Math.round(etaMin * 60)} s (≈ ${Math.round(distanceM)} m).`
+          : `Estás a ${Math.round(distanceM)} m.`;
         void alertUser({
           title: `🔔 ${stop.name} — bájate aquí`,
-          body: `Estás a ${Math.round(distanceM)} m. Pulsa para abrir el viaje.`,
+          body: `${distStr} Pulsa para abrir el viaje.`,
           tag: `stop-alert-${alert.id}`,
           url: '/trip',
           withSound: true,
         });
-        // Mark as triggered so it doesn't fire again this trip
         void markTriggered(alert.id!);
-        // Optimistic local update
         setAlerts((cur) => cur.map((a) => (a.id === alert.id ? { ...a, triggered: true } : a)));
       }
     }

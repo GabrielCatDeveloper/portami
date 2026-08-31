@@ -15,6 +15,7 @@ const trips = new Map<string, ActiveTrip>();
 const proposals = new Map<string, any>();
 const detours: any[] = [];
 const incidents: any[] = [];
+const busReports: any[] = [];
 
 export const handlers = [
   // List nearby routes (filter by point-to-polyline proximity)
@@ -214,5 +215,51 @@ export const handlers = [
       i.resolvedAt = Date.now();
     }
     return HttpResponse.json({ ok: true });
+  }),
+
+  // ===== Stop request (per-route) =====
+  http.put('/api/routes/:id/stop-request', async ({ params, request }) => {
+    await delay(150);
+    const id = params.id as string;
+    const body = await request.json() as any;
+    const seed = seedRoutes.find((r) => r.id === id);
+    if (seed) {
+      seed.stopRequest = { ...body, updatedAt: Date.now() };
+    }
+    return HttpResponse.json({ ok: true, stopRequest: { ...body, updatedAt: Date.now() } });
+  }),
+
+  // ===== Bus reports (per-route) =====
+  http.get('/api/routes/:id/bus-reports', async ({ params, request }) => {
+    await delay(100);
+    const id = params.id as string;
+    const url = new URL(request.url);
+    const limit = parseInt(url.searchParams.get('limit') ?? '20', 10);
+    const list = busReports
+      .filter((r) => r.routeId === id)
+      .sort((a, b) => b.observedAt - a.observedAt)
+      .slice(0, limit);
+    return HttpResponse.json({ reports: list });
+  }),
+
+  http.post('/api/routes/:id/bus-reports', async ({ params, request }) => {
+    await delay(150);
+    const id = params.id as string;
+    const body = await request.json() as any;
+    if (!body.plate?.trim()) {
+      return new HttpResponse('plate required', { status: 400 });
+    }
+    const rid = `br-${Math.random().toString(36).slice(2, 8)}`;
+    busReports.push({
+      id: rid,
+      routeId: id,
+      plate: body.plate.trim(),
+      observedAt: Date.now(),
+      hasStopButton: body.hasStopButton,
+      buttonPhotoUrl: body.buttonPhotoUrl,
+      notes: body.notes,
+      reportedBy: body.reportedBy,
+    });
+    return HttpResponse.json({ id: rid }, { status: 201 });
   }),
 ];

@@ -25,6 +25,24 @@ export type Schedule = {
 
 export type VehicleKind = 'bus' | 'train' | 'tram' | 'metro' | 'other';
 
+/**
+ * How to request a stop on this route. Set collaboratively by users
+ * (typically a frequent rider confirms whether the bus has a button
+ * and what it looks like).
+ */
+export type StopRequestInfo = {
+  /** "button" = push a button inside the bus; "shout" = tell the driver; "app" = use an operator app; "other" / "unknown" */
+  type: 'button' | 'shout' | 'app' | 'other' | 'unknown';
+  /** Short, human-readable instructions (e.g. "El botón está junto a la puerta trasera, marcado en rojo"). */
+  notes?: string;
+  /** Data URL of a photo showing the button. Helps new riders locate it. */
+  buttonPhotoUrl?: string;
+  /** Number of distinct users that have confirmed this info. */
+  confirmations?: number;
+  /** Last time it was updated. */
+  updatedAt?: number;
+};
+
 export type Route = {
   id: string;
   name: string;
@@ -41,6 +59,29 @@ export type Route = {
   operator?: string;
   /** Direction label (e.g. "Centro ↔ Aeropuerto") */
   direction?: string;
+  /** How to ask the driver to stop (collaborative, edited by users). */
+  stopRequest?: StopRequestInfo;
+};
+
+/**
+ * Report by a user about a specific bus they rode on this route.
+ * Buses aren't permanently tied to routes (operators rotate them), so
+ * these reports are observations useful for other riders.
+ */
+export type BusReport = {
+  id: string;
+  routeId: string;
+  /** Bus identifier: license plate, fleet number, or other. */
+  plate: string;
+  /** When the user observed the bus on this route. */
+  observedAt: number;
+  /** Did this specific bus have a stop-request button? */
+  hasStopButton?: boolean;
+  /** Photo of the button (data URL). */
+  buttonPhotoUrl?: string;
+  /** Free notes: condition of the bus, where it stops, etc. */
+  notes?: string;
+  reportedBy: string; // anonId
 };
 
 /**

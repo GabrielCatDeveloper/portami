@@ -9,6 +9,7 @@ import { useTripStore } from '@/state/trip';
 import { useIdentityStore } from '@/state/identity';
 import type { Route, RouteEditProposal, Incident, IncidentKind } from '@/api/types';
 import { LeafletMap, vehicleEmoji, vehicleColor } from '@/components/LeafletMap';
+import { StopRequestSection } from '@/components/StopRequestSection';
 import { Navigation, ChevronLeft, Edit, Map as MapIcon, Check, X, AlertTriangle, Bus, Clock, Train, Plus } from '@/components/icons';
 import { formatDistance, polylineLength } from '@/geo/distance';
 import { estimateStopEtas, formatEta } from '@/geo/eta';
@@ -345,6 +346,9 @@ export default function RouteDetailPage() {
             <Plus size={14} /> Reportar incidencia
           </button>
         )}
+
+        {/* Stop request info + bus reports */}
+        <StopRequestSection route={route} onRouteChange={setRoute} />
 
         {/* Live ETA panel */}
         {primaryBus && etas.length > 0 && (

@@ -25,12 +25,11 @@ import { clientsClaim } from 'workbox-core';
 declare const self: ServiceWorkerGlobalScope;
 
 // Increment whenever the SW logic changes in a way that requires all
-// clients to drop their old runtime caches. Bumped to v15: per-stop
-// proximity alerts. User configures alerts per route in the Trip page;
-// when the bus is within the trigger distance the app fires a strong
-// alarm (vibration + sound + sticky requireInteraction notification).
-// Alerts are local (IndexedDB), not synced to the server.
-const CACHE_VERSION = 15;
+// clients to drop their old runtime caches. Bumped to v16: collaborative
+// 'Cómo pedir parada' info per route (button / shout / app / unknown),
+// plus per-bus observations (license plate, has button, photo) to
+// help new riders on routes with rotating vehicles.
+const CACHE_VERSION = 16;
 
 self.skipWaiting();
 clientsClaim();

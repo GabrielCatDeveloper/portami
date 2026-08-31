@@ -1,5 +1,12 @@
 // Local alerts (multi-stop notifications) — user-only, stored in IndexedDB.
 // Server has no knowledge of these.
+//
+// Two trigger modes (at least one must be set):
+//   - triggerMinutes: fire when ETA to the stop ≤ N minutes. This adapts
+//     to traffic: at high speed the alert fires earlier in space, at
+//     low speed (jam) it fires closer to the stop.
+//   - triggerDistanceM: fire when within N meters. Useful for places
+//     with no speed data (e.g. the bus is stopped in a station).
 
 import type { DBSchema, IDBPDatabase } from 'idb';
 import { openDB } from 'idb';
@@ -9,8 +16,10 @@ export type StopAlert = {
   tripRouteId: string;     // route this alert belongs to
   stopId: string;
   stopName: string;
-  /** Trigger when the bus is within this many meters of the stop. */
-  triggerDistanceM: number;
+  /** Fire when ETA to the stop ≤ this many minutes. */
+  triggerMinutes?: number;
+  /** Fire when within this many meters (fallback when speed is 0). */
+  triggerDistanceM?: number;
   /** Has the alert fired for the current trip? Cleared on new trip. */
   triggered?: boolean;
   createdAt: number;
