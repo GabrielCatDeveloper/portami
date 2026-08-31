@@ -5,7 +5,7 @@ import { apiFetch } from '@/api/client';
 import type { Route } from '@/api/types';
 import { useIdentityStore } from '@/state/identity';
 import { useTripStore } from '@/state/trip';
-import { ChevronRight, Map, Record as RecordIcon, AlertTriangle, Navigation, Plus } from '@/components/icons';
+import { ChevronRight, Map, Record as RecordIcon, AlertTriangle, Navigation, Plus, Bus } from '@/components/icons';
 import { formatDistance, polylineLength } from '@/geo/distance';
 
 export default function HomePage() {
@@ -69,6 +69,18 @@ export default function HomePage() {
 
       {/* Quick actions */}
       <section className="mb-4">
+        {/* Primary CTA: "I'm on a bus/train" — opens Board flow */}
+        <Link
+          to="/board"
+          className="btn btn-primary btn-lg btn-block mb-3"
+          style={{
+            background: 'linear-gradient(135deg, var(--brand-600), var(--brand-700))',
+            boxShadow: 'var(--shadow-md)',
+          }}
+        >
+          <Bus size={22} /> He subido a un bus/tren
+        </Link>
+
         <h3 className="mb-3 text-muted text-sm">{t('home.quickActions')}</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
           <Link to="/record" className="card card-interactive text-center" style={{ padding: 16 }}>

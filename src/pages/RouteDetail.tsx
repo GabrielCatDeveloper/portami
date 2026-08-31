@@ -3,12 +3,14 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '@/api/client';
 import { listProposals, voteOnProposal } from '@/api/proposals';
+import { fetchActiveBusesOnRoute, type ActiveBus } from '@/api/activeBuses';
 import { useTripStore } from '@/state/trip';
 import { useIdentityStore } from '@/state/identity';
 import type { Route, RouteEditProposal } from '@/api/types';
 import { LeafletMap } from '@/components/LeafletMap';
-import { Navigation, ChevronLeft, Edit, Map as MapIcon, Check, X, AlertTriangle } from '@/components/icons';
+import { Navigation, ChevronLeft, Edit, Map as MapIcon, Check, X, AlertTriangle, Bus, Clock } from '@/components/icons';
 import { formatDistance, polylineLength } from '@/geo/distance';
+import { estimateStopEtas, formatEta } from '@/geo/eta';
 import { notify } from '@/notify';
 
 export default function RouteDetailPage() {
@@ -20,6 +22,7 @@ export default function RouteDetailPage() {
   const [pending, setPending] = useState<RouteEditProposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [voting, setVoting] = useState<string | null>(null);
+  const [activeBuses, setActiveBuses] = useState<ActiveBus[]>([]);
   const startTrip = useTripStore((s) => s.startTrip);
   const anonId = useIdentityStore((s) => s.anonId);
   const myPubKey = useIdentityStore((s) => s.identity?.pubKey);
@@ -40,6 +43,24 @@ export default function RouteDetailPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+  }, [id]);
+
+  // Poll active buses on this route every 15s while viewing
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    const tick = () => {
+      if (cancelled) return;
+      fetchActiveBusesOnRoute(id)
+        .then((b) => !cancelled && setActiveBuses(b))
+        .catch(() => {});
+    };
+    tick();
+    const handle = window.setInterval(tick, 15_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(handle);
+    };
   }, [id]);
 
   // Notify the author when their proposal status changes (approved/rejected)
@@ -100,18 +121,53 @@ export default function RouteDetailPage() {
 
   const pendingCount = pending.filter((p) => p.status === 'pending').length;
 
+  // Compute per-stop ETAs from the first active bus (most recent position)
+  const primaryBus = activeBuses[0];
+  const etas = primaryBus
+    ? estimateStopEtas(route, primaryBus.position)
+    : [];
+
+  // Build map markers
+  const busMarkers = activeBuses.map((b) => ({
+    tripId: b.tripId,
+    anonId: b.anonId,
+    position: { lat: b.position.lat, lng: b.position.lng },
+  }));
+
   return (
     <div>
       <div style={{ height: '50vh', position: 'relative' }}>
-        <LeafletMap routes={[route]} showStops />
+        <LeafletMap
+          routes={[route]}
+          showStops
+          activeBuses={busMarkers}
+        />
         <Link
           to="/"
           className="btn btn-icon"
-          style={{ position: 'absolute', top: 12, left: 12, zIndex: 1000, background: 'var(--overlay-strong)' }}
+          style={{ position: 'absolute', top: 12, left: 12, zIndex: 50, background: 'var(--overlay-strong)' }}
           aria-label={t('common.back')}
         >
           <ChevronLeft />
         </Link>
+        {activeBuses.length > 0 && (
+          <div
+            className="banner banner-info"
+            style={{
+              position: 'absolute',
+              top: 12,
+              right: 12,
+              zIndex: 50,
+              padding: '8px 12px',
+              borderRadius: 'var(--r-md)',
+              background: 'var(--overlay-strong)',
+              color: 'var(--text)',
+            }}
+          >
+            <Bus size={16} />
+            <span>{activeBuses.length} en ruta ahora</span>
+          </div>
+        )}
       </div>
 
       <div className="page" style={{ paddingTop: 16 }}>
@@ -124,6 +180,40 @@ export default function RouteDetailPage() {
           </div>
           <span className="badge badge-brand">{route.vehicleKind ?? 'bus'}</span>
         </div>
+
+        {/* Live ETA panel */}
+        {primaryBus && etas.length > 0 && (
+          <section className="card mb-3">
+            <div className="card-header">
+              <div className="card-title">Tiempo estimado de llegada</div>
+              <span className="badge badge-warning" title="Cálculo aproximado basado en la velocidad del bus">Estimación</span>
+            </div>
+            <p className="text-xs text-muted mb-2">
+              Calculado desde la posición de #{primaryBus.anonId.slice(0, 6)}. Es una estimación — puede variar según tráfico, semáforos y paradas.
+            </p>
+            <div className="list">
+              {etas.map((e, i) => (
+                <div key={e.stopId} className="list-item">
+                  <div className="list-item-icon" style={{ background: i === 0 ? 'var(--brand-600)' : 'var(--bg-subtle)', color: i === 0 ? 'white' : 'var(--text)' }}>
+                    <Clock size={16} />
+                  </div>
+                  <div className="list-item-body">
+                    <div className="list-item-title">
+                      {i === 0 && <strong>Próxima: </strong>}
+                      {e.stopName}
+                    </div>
+                    <div className="list-item-sub">
+                      {formatDistance(e.distanceM)}
+                    </div>
+                  </div>
+                  <div style={{ fontWeight: 700, color: 'var(--brand-700)', fontFamily: 'var(--font-mono)' }}>
+                    {formatEta(e.etaMs)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Tabs */}
         <div className="row gap-2 mb-3">
@@ -162,8 +252,8 @@ export default function RouteDetailPage() {
                   <div
                     className="list-item-icon"
                     style={{
-                      background: 'var(--bg-subtle)',
-                      color: 'var(--text)',
+                      background: i === 0 ? 'var(--brand-600)' : 'var(--bg-subtle)',
+                      color: i === 0 ? 'white' : 'var(--text)',
                       fontWeight: 700,
                     }}
                   >

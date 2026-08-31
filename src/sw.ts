@@ -25,11 +25,10 @@ import { clientsClaim } from 'workbox-core';
 declare const self: ServiceWorkerGlobalScope;
 
 // Increment whenever the SW logic changes in a way that requires all
-// clients to drop their old runtime caches. Bumped to v11: move Sync
-// out of the bottom nav (it was 1/5 of the bar for an action the user
-// does once per device) and into Settings as a prominent card that
-// also lists paired devices inline.
-const CACHE_VERSION = 11;
+// clients to drop their old runtime caches. Bumped to v12: new 'Board'
+// flow (GPS -> route suggestions -> confirm) + live bus tracking on
+// the map + per-stop ETA estimation with 'estimation' disclaimer.
+const CACHE_VERSION = 12;
 
 self.skipWaiting();
 clientsClaim();

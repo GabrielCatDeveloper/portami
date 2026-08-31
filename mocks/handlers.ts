@@ -1,24 +1,34 @@
 import { http, HttpResponse, delay } from 'msw';
 import { activeBuses, seedRoutes } from './data/seed';
-import type { Route } from '@/api/types';
+import type { Route, GPSSample } from '@/api/types';
 
-const trips = new Map<string, { id: string; routeId: string; startedAt: number; endedAt?: number; anonId: string }>();
+type ActiveTrip = {
+  id: string;
+  routeId: string;
+  startedAt: number;
+  endedAt?: number;
+  anonId: string;
+  lastSample?: GPSSample;
+};
+
+const trips = new Map<string, ActiveTrip>();
 const proposals = new Map<string, any>();
 const detours: any[] = [];
 
 export const handlers = [
-  // List nearby routes
+  // List nearby routes (filter by point-to-polyline proximity)
   http.get('/api/routes/nearby', async ({ request }) => {
     await delay(200);
     const url = new URL(request.url);
     const lat = parseFloat(url.searchParams.get('lat') ?? '40.42');
     const lng = parseFloat(url.searchParams.get('lng') ?? '-3.69');
-    const nearby = seedRoutes.filter((r) => {
-      const mid = r.polyline[Math.floor(r.polyline.length / 2)];
-      const dLat = (mid[0] - lat) * 111;
-      const dLng = (mid[1] - lng) * 85;
-      return Math.sqrt(dLat * dLat + dLng * dLng) < 100; // 100 km radius
-    });
+    // Use real proximity to the polyline, not just the midpoint
+    const { distanceToPolyline } = await import('@/geo/distance');
+    const nearby = seedRoutes
+      .map((r) => ({ route: r, distM: distanceToPolyline({ lat, lng }, r.polyline) }))
+      .filter(({ distM }) => distM < 5000) // 5 km
+      .sort((a, b) => a.distM - b.distM)
+      .map(({ route }) => route);
     return HttpResponse.json({ routes: nearby });
   }),
 
@@ -28,6 +38,12 @@ export const handlers = [
     const r = seedRoutes.find((x) => x.id === params.id);
     if (!r) return new HttpResponse(null, { status: 404 });
     return HttpResponse.json(r);
+  }),
+
+  // List ALL routes (used by Board to find matches)
+  http.get('/api/routes', async () => {
+    await delay(200);
+    return HttpResponse.json({ routes: seedRoutes });
   }),
 
   // Create route
@@ -49,18 +65,23 @@ export const handlers = [
     return HttpResponse.json({ tripId: id });
   }),
 
-  // Push samples
-  http.post('/api/trips/:id/samples', async () => {
+  // Push samples (updates the trip's lastSample)
+  http.post('/api/trips/:id/samples', async ({ params, request }) => {
     await delay(80);
+    const trip = trips.get(params.id as string);
+    if (!trip) return new HttpResponse(null, { status: 404 });
+    const body = (await request.json()) as { samples: GPSSample[] };
+    const last = body.samples[body.samples.length - 1];
+    if (last) trip.lastSample = last;
     return new HttpResponse(null, { status: 204 });
   }),
 
-  // Get trip state (other active buses)
+  // Get trip state
   http.get('/api/trips/:id', async ({ params }) => {
     await delay(120);
     const trip = trips.get(params.id as string);
     if (!trip) return new HttpResponse(null, { status: 404 });
-    // Simulate live movement
+    // Simulate live movement on the demo activeBuses (cosmetic)
     const bus = activeBuses.get(trip.routeId);
     if (bus) {
       bus.lat += (Math.random() - 0.5) * 0.0008;
@@ -82,6 +103,39 @@ export const handlers = [
     const trip = trips.get(params.id as string);
     if (trip) trip.endedAt = Date.now();
     return new HttpResponse(null, { status: 204 });
+  }),
+
+  // ACTIVE BUSES on a route (the new endpoint for live tracking)
+  http.get('/api/routes/:id/active-buses', async ({ params }) => {
+    await delay(100);
+    const active = Array.from(trips.values()).filter(
+      (t) => t.routeId === params.id && !t.endedAt && t.lastSample,
+    );
+    return HttpResponse.json({
+      buses: active.map((t) => ({
+        tripId: t.id,
+        anonId: t.anonId,
+        startedAt: t.startedAt,
+        position: t.lastSample,
+      })),
+    });
+  }),
+
+  // ALL active buses across routes (for Explore map)
+  http.get('/api/active-buses', async () => {
+    await delay(120);
+    const active = Array.from(trips.values()).filter(
+      (t) => !t.endedAt && t.lastSample,
+    );
+    return HttpResponse.json({
+      buses: active.map((t) => ({
+        tripId: t.id,
+        routeId: t.routeId,
+        anonId: t.anonId,
+        startedAt: t.startedAt,
+        position: t.lastSample,
+      })),
+    });
   }),
 
   // Proposals list

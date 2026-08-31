@@ -37,6 +37,12 @@ const userIcon = L.divIcon({
   iconAnchor: [11, 11],
 });
 
+export type ActiveBusMarker = {
+  tripId: string;
+  anonId: string;
+  position: LatLng;
+};
+
 export type MapLayer = {
   routes?: Route[];
   showStops?: boolean;
@@ -44,14 +50,18 @@ export type MapLayer = {
   followUser?: boolean;
   onMapClick?: (latlng: LatLng) => void;
   userPosition?: LatLng | null;
+  activeBuses?: ActiveBusMarker[];
   className?: string;
 };
 
-export function LeafletMap({ routes, showStops, centerOn, followUser, onMapClick, userPosition, className }: MapLayer) {
+export function LeafletMap({
+  routes, showStops, centerOn, followUser, onMapClick, userPosition, activeBuses, className,
+}: MapLayer) {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const routeLayerRef = useRef<L.LayerGroup | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
+  const busLayerRef = useRef<L.LayerGroup | null>(null);
   const onMapClickRef = useRef(onMapClick);
   onMapClickRef.current = onMapClick;
 
@@ -76,6 +86,7 @@ export function LeafletMap({ routes, showStops, centerOn, followUser, onMapClick
 
     mapRef.current = map;
     routeLayerRef.current = L.layerGroup().addTo(map);
+    busLayerRef.current = L.layerGroup().addTo(map);
 
     return () => {
       map.remove();
@@ -145,6 +156,20 @@ export function LeafletMap({ routes, showStops, centerOn, followUser, onMapClick
       map.panTo([userPosition.lat, userPosition.lng], { animate: true });
     }
   }, [userPosition, followUser]);
+
+  // Active bus markers (other users currently riding this route)
+  useEffect(() => {
+    const layer = busLayerRef.current;
+    if (!layer) return;
+    layer.clearLayers();
+    if (!activeBuses) return;
+    for (const b of activeBuses) {
+      const marker = L.marker([b.position.lat, b.position.lng], { icon: _busIcon })
+        .bindTooltip(`🚌 · #${b.anonId.slice(0, 6)}`)
+        .addTo(layer);
+      void marker;
+    }
+  }, [activeBuses]);
 
   return <div ref={ref} className={`leaflet-container ${className ?? ''}`} />;
 }
