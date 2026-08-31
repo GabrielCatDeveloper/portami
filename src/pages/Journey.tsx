@@ -40,7 +40,7 @@ export default function JourneyPage() {
   const [avoidRunning, setAvoidRunning] = useState(true);
   const [maxBoardings, setMaxBoardings] = useState(3);
 
-  const useMyLocation = async () => {
+  const locateMe = async () => {
     setPhase('locating');
     setError(null);
     try {
@@ -158,7 +158,7 @@ export default function JourneyPage() {
       <section className="card mb-3">
         <div className="card-title mb-2">Origen</div>
         <div className="row gap-2" style={{ alignItems: 'center' }}>
-          <button type="button" className="btn" onClick={() => void useMyLocation()}>
+          <button type="button" className="btn" onClick={() => void locateMe()}>
             <MapIcon size={14} /> Usar mi ubicación
           </button>
           <span className="text-xs text-muted">o</span>
