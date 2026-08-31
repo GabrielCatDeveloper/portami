@@ -25,10 +25,10 @@ import { clientsClaim } from 'workbox-core';
 declare const self: ServiceWorkerGlobalScope;
 
 // Increment whenever the SW logic changes in a way that requires all
-// clients to drop their old runtime caches. Bumped to v4: lock the document
-// scroll so only .app-main (and inside it the map) can scroll — fixes the
-// mobile "double scroll" issue.
-const CACHE_VERSION = 4;
+// clients to drop their old runtime caches. Bumped to v5: switch to
+// HashRouter so refreshing on any internal route (e.g. /portami/#/settings)
+// no longer 404s on GitHub Pages.
+const CACHE_VERSION = 5;
 
 self.skipWaiting();
 clientsClaim();
