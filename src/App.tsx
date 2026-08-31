@@ -13,6 +13,8 @@ import RecordPage from '@/pages/Record';
 import SettingsPage from '@/pages/Settings';
 import SyncPage from '@/pages/Sync';
 import BoardPage from '@/pages/Board';
+import JourneyPage from '@/pages/Journey';
+import FollowingPage from '@/pages/Following';
 
 export default function App() {
   const { t } = useTranslation();
@@ -54,6 +56,8 @@ export default function App() {
           <Route path="/record" element={<RecordPage />} />
           {/* Board: smart "I just boarded" flow — GPS → route suggestions. */}
           <Route path="/board" element={<BoardPage />} />
+          <Route path="/journey" element={<JourneyPage />} />
+          <Route path="/following" element={<FollowingPage />} />
           {/* Sync is reachable from Settings (less-used action, no need
               for a permanent slot in the bottom nav). */}
           <Route path="/sync" element={<SyncPage />} />

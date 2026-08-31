@@ -52,6 +52,11 @@ type SyncState = {
   reset(): void;
   loadPairedDevices(): Promise<PairedDevice[]>;
   revokeDevice(deviceId: string): Promise<void>;
+
+  /** Send an arbitrary message to the paired peer (if connected). */
+  send(msg: SyncMessage): void;
+  /** Subscribe to all messages received from the paired peer. Returns an unsubscribe. */
+  subscribe(fn: (msg: SyncMessage) => void): () => void;
 };
 
 async function suggestAlias(): Promise<string> {
@@ -69,6 +74,8 @@ async function suggestAlias(): Promise<string> {
 
 export const useSyncStore = create<SyncState>((set, get) => {
   let peer: Peer | null = null;
+  /** Listeners for arbitrary post-pairing messages (e.g. trip-share-*). */
+  const extraSubs: Set<(msg: SyncMessage) => void> = new Set();
 
   async function bootstrapPeer(role: 'initiator' | 'joiner'): Promise<Peer> {
     if (peer) peer.close();
@@ -91,6 +98,10 @@ export const useSyncStore = create<SyncState>((set, get) => {
 
     p.on('message', async (msg: SyncMessage) => {
       await handleMessage(p, msg, get, set, role);
+      // Fan out to extra subscribers (e.g. trip-share receiver)
+      for (const fn of extraSubs) {
+        try { fn(msg); } catch { /* swallow */ }
+      }
     });
 
     return p;
@@ -227,6 +238,7 @@ export const useSyncStore = create<SyncState>((set, get) => {
     reset() {
       peer?.close();
       peer = null;
+      extraSubs.clear();
       set({
         role: 'idle',
         phase: 'idle',
@@ -247,6 +259,15 @@ export const useSyncStore = create<SyncState>((set, get) => {
     async revokeDevice(deviceId) {
       const db = await getDB();
       await db.delete('pairedDevices', deviceId);
+    },
+
+    send(msg: SyncMessage) {
+      peer?.send(msg);
+    },
+
+    subscribe(fn) {
+      extraSubs.add(fn);
+      return () => extraSubs.delete(fn);
     },
   };
 });

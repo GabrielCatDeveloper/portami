@@ -25,11 +25,11 @@ import { clientsClaim } from 'workbox-core';
 declare const self: ServiceWorkerGlobalScope;
 
 // Increment whenever the SW logic changes in a way that requires all
-// clients to drop their old runtime caches. Bumped to v16: collaborative
-// 'Cómo pedir parada' info per route (button / shout / app / unknown),
-// plus per-bus observations (license plate, has button, photo) to
-// help new riders on routes with rotating vehicles.
-const CACHE_VERSION = 16;
+// clients to drop their old runtime caches. Bumped to v17: journey
+// planner A→B (new /journey page) + WebRTC trip sharing (sender
+// broadcasts location every 60s, receiver sees a 'Following' view at
+// /following with the planned route + last known GPS).
+const CACHE_VERSION = 17;
 
 self.skipWaiting();
 clientsClaim();

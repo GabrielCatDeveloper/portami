@@ -131,7 +131,79 @@ export type Detour = {
   ts: number;
   reason: string;
   altPolyline: Array<[number, number]>;
-  reporter: string; // pubkey
+  reporter: string;
+};
+
+// ============================================================
+// Journey planning (A → B)
+// ============================================================
+
+/** A single step of a journey plan. */
+export type JourneyStep =
+  | {
+      kind: 'walk';
+      /** Approximate coords at the start of the walk. */
+      from: LatLng;
+      /** Destination of the walk (a stop or a point). */
+      to: LatLng;
+      distanceM: number;
+      durationS: number;
+    }
+  | {
+      kind: 'ride';
+      routeId: string;
+      routeName: string;
+      vehicleKind?: VehicleKind;
+      fromStopId: string;
+      fromStopName: string;
+      toStopId: string;
+      toStopName: string;
+      /** Distance on the route between the two stops. */
+      rideDistanceM: number;
+      /** If the route has a schedule, this is the next valid departure after
+       * `departAfter`; otherwise undefined (assumes always available). */
+      nextDepartureUtc?: number;
+    };
+
+export type Journey = {
+  id: string;
+  from: LatLng;
+  to: LatLng;
+  steps: JourneyStep[];
+  totalDurationS: number;
+  totalWalkM: number;
+  totalRideM: number;
+  /** Number of vehicle boardings (so transfers = boardings - 1 when >= 1). */
+  boardings: number;
+  /** Earliest possible departure time given the schedule. */
+  departAfterUtc: number;
+  /** Resulting arrival time at `to`. */
+  arriveByUtc: number;
+  /** Max walking speed in m/s required to make the connections. 0 if no walking. */
+  maxRequiredWalkSpeedMs: number;
+};
+
+export type JourneyPlanRequest = {
+  from: LatLng;
+  to: LatLng;
+  /** Optional — defaults to "now". */
+  departAfterUtc?: number;
+  /** Max m/s the user is willing to walk. Defaults to 1.4 (≈ slow stroll). */
+  maxWalkSpeedMs?: number;
+  /** Max number of boardings (transfers + 1). Defaults to 3. */
+  maxBoardings?: number;
+  /** Search radius around from/to in meters. Defaults to 600. */
+  walkRadiusM?: number;
+  /** Optional: exclude these route IDs. */
+  excludeRouteIds?: string[];
+  /** Vehicle filter. */
+  vehicleKinds?: VehicleKind[];
+};
+
+export type JourneyPlanResponse = {
+  journeys: Journey[];
+  /** Routes considered for the search. Useful for the UI to show "no buses" cases. */
+  considered: Array<{ routeId: string; reason: string }>;
 };
 
 // ============================================================
@@ -255,4 +327,25 @@ export type SyncMessage =
   | { kind: 'conflict-resolved'; entityId: string; resolution: 'ours' | 'theirs' | 'merged' }
   | { kind: 'paired-device-revoked'; deviceId: string }
   | { kind: 'ping'; ts: number }
-  | { kind: 'pong'; ts: number };
+  | { kind: 'pong'; ts: number }
+  // Trip sharing (sender → receiver) — for the "friend can find me" feature.
+  | {
+      kind: 'trip-share-start';
+      fromAnonId: string;
+      fromAlias?: string;
+      routeId?: string;
+      routeName?: string;
+      plannedRoute?: { steps: Array<{ kind: 'walk' | 'ride'; label: string }>; totalDurationS: number };
+      startedAt: number;
+    }
+  | {
+      kind: 'trip-share-location';
+      fromAnonId: string;
+      ts: number;
+      lat: number;
+      lng: number;
+      speed?: number;
+      nextStopName?: string;
+      etaNextStopS?: number;
+    }
+  | { kind: 'trip-share-end'; fromAnonId: string; ts: number; reason: string };

@@ -8,7 +8,9 @@ import { haversine, nearestStop, formatDistance } from '@/geo/distance';
 import { useStopAlertWatcher } from '@/geo/useStopAlertWatcher';
 import { resetTriggered } from '@/storage/stopAlerts';
 import { StopAlertsCard } from '@/components/StopAlertsCard';
-import { Stop, AlertTriangle, Info } from '@/components/icons';
+import { useTripShareBridge, nextStopInfo } from '@/sync/tripShare';
+import { useSyncStore } from '@/sync';
+import { Stop, AlertTriangle, Info, Share, ShareOff } from '@/components/icons';
 
 export default function TripPage() {
   const { t } = useTranslation();
@@ -79,6 +81,16 @@ export default function TripPage() {
     sample: lastSample,
     enabled: !!activeTrip,
   });
+
+  // Trip sharing via WebRTC
+  const sync = useSyncStore();
+  const shareBridge = useTripShareBridge({
+    routeId: route?.id,
+    routeName: route?.name,
+    plannedRoute: null, // could be passed from a planned journey A→B
+    lastSample: lastSample ? { lat: lastSample.lat, lng: lastSample.lng, speed: lastSample.speed, ts: lastSample.ts } : null,
+  });
+  const [sharing, setSharing] = useState(false);
 
   if (!activeTrip || !route) {
     return (
@@ -197,11 +209,66 @@ export default function TripPage() {
           onChange={reloadAlerts}
         />
 
+        <section className="card mb-3">
+          <div className="card-header">
+            <div className="list-item-icon" style={{ background: sharing ? 'var(--success)' : 'var(--bg-subtle)' }}>
+              {sharing ? <Share size={20} /> : <ShareOff size={20} />}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div className="card-title">Compartir viaje</div>
+              <div className="card-subtitle">
+                {sharing
+                  ? 'Tu ubicación se envía cada minuto al dispositivo emparejado.'
+                  : 'Para que un amigo te encuentre si pierdes el bus o se te acaba la batería.'}
+              </div>
+            </div>
+          </div>
+          {sharing ? (
+            <button
+              type="button"
+              className="btn btn-block btn-danger"
+              onClick={() => {
+                shareBridge.stopSharing('manual');
+                setSharing(false);
+              }}
+            >
+              <ShareOff size={18} /> Dejar de compartir
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-block btn-primary"
+              onClick={() => {
+                shareBridge.startSharing(null);
+                setSharing(true);
+              }}
+            >
+              <Share size={18} /> Compartir con dispositivo emparejado
+            </button>
+          )}
+        </section>
+
         <button
           type="button"
           className="btn btn-danger btn-lg btn-block"
           onClick={() => {
-            if (confirm(t('trip.endConfirm'))) void endTrip('manual');
+            if (confirm(t('trip.endConfirm'))) {
+              if (sharing) shareBridge.stopSharing('trip-ended');
+              void endTrip('manual');
+            }
+          }}
+        >
+          {t('trip.endNow')}
+        </button>
+
+        <button
+          type="button"
+          className="btn btn-danger btn-lg btn-block"
+          onClick={() => {
+            if (confirm(t('trip.endConfirm'))) {
+              if (sharing) shareBridge.stopSharing('trip-ended');
+              void endTrip('manual');
+            }
           }}
         >
           {t('trip.endNow')}

@@ -406,6 +406,9 @@ export default function SettingsPage() {
         <button type="button" className="btn btn-primary btn-block" onClick={() => navigate('/sync')}>
           <SyncIcon size={18} /> Emparejar nuevo dispositivo
         </button>
+        <button type="button" className="btn btn-block mt-2" onClick={() => navigate('/following')}>
+          <ChevronDown size={18} style={{ transform: 'rotate(-90deg)' }} /> Ver viajes compartidos
+        </button>
       </section>
 
       {/* Notifications */}

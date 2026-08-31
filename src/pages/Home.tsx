@@ -5,7 +5,7 @@ import { apiFetch } from '@/api/client';
 import type { Route } from '@/api/types';
 import { useIdentityStore } from '@/state/identity';
 import { useTripStore } from '@/state/trip';
-import { ChevronRight, Map, Record as RecordIcon, AlertTriangle, Navigation, Plus, Bus } from '@/components/icons';
+import { ChevronRight, Map, Record as RecordIcon, AlertTriangle, Navigation, Plus, Bus, Route as RouteIcon } from '@/components/icons';
 import { formatDistance, polylineLength } from '@/geo/distance';
 import { ServerStatusBadge } from '@/components/ServerStatusBadge';
 
@@ -72,7 +72,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Quick actions */}
+        {/* Quick actions */}
       <section className="mb-4">
         {/* Primary CTA: "I'm on a bus/train" — opens Board flow */}
         <Link
@@ -84,6 +84,14 @@ export default function HomePage() {
           }}
         >
           <Bus size={22} /> He subido a un bus/tren
+        </Link>
+
+        {/* Secondary CTA: Plan a trip A → B */}
+        <Link
+          to="/journey"
+          className="btn btn-block mb-3"
+        >
+          <RouteIcon size={20} /> Planear un viaje (origen → destino)
         </Link>
 
         <h3 className="mb-3 text-muted text-sm">{t('home.quickActions')}</h3>
