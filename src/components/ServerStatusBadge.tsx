@@ -1,4 +1,3 @@
-import { useTranslation } from 'react-i18next';
 import { useServerHealth } from '@/state/health';
 import { Wifi, WifiOff, AlertTriangle, Clock } from '@/components/icons';
 
@@ -7,9 +6,8 @@ import { Wifi, WifiOff, AlertTriangle, Clock } from '@/components/icons';
  * Shown at the top of most pages. Click for details (not implemented).
  */
 export function ServerStatusBadge() {
-  const { t } = useTranslation();
   const health = useServerHealth();
-  const { status, routes, tripsActive } = health;
+  const { status, routes } = health;
 
   if (status === 'normal') {
     return (

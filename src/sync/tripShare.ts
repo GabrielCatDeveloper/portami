@@ -151,14 +151,22 @@ export function useTripShareBridge(opts: {
     return () => {
       unsub();
     };
+    // `onAckReceived` is defined inside the hook and intentionally
+    // not in deps — recreating the subscription on every render
+    // would cause missed ack messages during React's commit phase.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sync, identity.anonId, deviceKey.deviceId]);
 
   // ------------------------------------------------------------------
   // Sender: per-peer location broadcast every 60s
   // ------------------------------------------------------------------
+  // `isSharing` is read here so the effect re-runs when the user
+  // starts/stops sharing. Reading ref.current inline is flagged by
+  // the linter as a complex expression in the deps array.
+  const isSharing = activeShareIdRef.current !== null;
   useEffect(() => {
     if (!sync || !sync.sendTo) return;
-    if (!activeShareIdRef.current || !lastSample) return;
+    if (!isSharing || !lastSample) return;
     const anonId = identity.anonId ?? 'me';
 
     const send = () => {
@@ -184,7 +192,7 @@ export function useTripShareBridge(opts: {
     send();
     const handle = window.setInterval(send, BROADCAST_INTERVAL_MS);
     return () => window.clearInterval(handle);
-  }, [activeShareIdRef.current !== null, sync, lastSample, identity.anonId]);
+  }, [isSharing, sync, lastSample, identity.anonId]);
 
   // ------------------------------------------------------------------
   // Sender: auto-retry when a peer transitions to `connected`
@@ -204,6 +212,11 @@ export function useTripShareBridge(opts: {
       await trySendStartToRecipient(share, deviceId, recip);
     });
     return unsub;
+    // trySendStartToRecipient is recreated every render (closure over
+    // useTripShareStore). Re-subscribing on every render would churn
+    // the peer-status stream and is unnecessary — the body reads fresh
+    // state via getOutgoingShare / getPeerStatus on each call.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sync]);
 
   // ------------------------------------------------------------------

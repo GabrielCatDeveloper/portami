@@ -10,7 +10,7 @@ import { useIdentityStore } from '@/state/identity';
 import type { Route, RouteEditProposal, Incident, IncidentKind } from '@/api/types';
 import { LeafletMap, vehicleEmoji, vehicleColor } from '@/components/LeafletMap';
 import { StopRequestSection } from '@/components/StopRequestSection';
-import { Navigation, ChevronLeft, Edit, Map as MapIcon, Check, X, AlertTriangle, Bus, Clock, Train, Plus } from '@/components/icons';
+import { Navigation, ChevronLeft, Edit, Map as MapIcon, Check, X, AlertTriangle, Bus, Clock, Plus } from '@/components/icons';
 import { formatDistance, polylineLength } from '@/geo/distance';
 import { estimateStopEtas, formatEta } from '@/geo/eta';
 import { isRouteActiveAt, summarizeSchedule, isIncidentVisible, incidentLabel } from '@/geo/schedule';

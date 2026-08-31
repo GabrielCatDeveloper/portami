@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import { useTripShareStore } from '@/state/tripShare';
 import { LeafletMap } from '@/components/LeafletMap';
 import { ArrowLeft, Bus, Clock, Share, Trash, Navigation, X, AlertTriangle } from '@/components/icons';
@@ -8,7 +7,6 @@ import { formatDistance } from '@/geo/distance';
 import type { SharedTrip } from '@/state/tripShare';
 
 export default function FollowingPage() {
-  const { t } = useTranslation();
   const navigate = useNavigate();
   const sharedTrips = useTripShareStore((s) => s.sharedTrips);
   const setSharedTrip = useTripShareStore((s) => s.setSharedTrip);
@@ -29,6 +27,10 @@ export default function FollowingPage() {
     if (selected && activeTrips.find((t) => t.fromAnonId === selected.fromAnonId)) {
       setSelected(activeTrips.find((t) => t.fromAnonId === selected.fromAnonId)!);
     }
+    // We only want to re-evaluate the auto-select when the trip list
+    // changes; tracking `activeTrips`/`selected` directly would cause
+    // infinite re-renders because we update `selected` inside.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sharedTrips]);
 
   if (activeTrips.length === 0 && endedTrips.length === 0) {

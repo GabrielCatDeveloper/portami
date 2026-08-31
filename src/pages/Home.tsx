@@ -10,7 +10,7 @@ import { formatDistance, polylineLength } from '@/geo/distance';
 import { ServerStatusBadge } from '@/components/ServerStatusBadge';
 
 export default function HomePage() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const anonId = useIdentityStore((s) => s.anonId);
   const activeTrip = useTripStore((s) => s.activeTrip);
   const route = useTripStore((s) => s.route);

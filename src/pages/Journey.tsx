@@ -1,18 +1,13 @@
-import { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { planJourney } from '@/api/journey';
 import { useTripStore } from '@/state/trip';
-import { geoWatcher } from '@/geo/watcher';
-import { LeafletMap } from '@/components/LeafletMap';
 import {
   Map as MapIcon,
   AlertTriangle,
   Check,
-  Clock,
   PersonStanding,
   Bus,
-  Plus,
   Play,
 } from '@/components/icons';
 import { formatDistance } from '@/geo/distance';
@@ -29,8 +24,6 @@ const VEHICLE_FILTERS: Array<{ key: VehicleKind | 'all'; label: string; emoji: s
 ];
 
 export default function JourneyPage() {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
   const [phase, setPhase] = useState<Phase>('idle');
   const [origin, setOrigin] = useState<LatLng | null>(null);
   const [destination, setDestination] = useState<LatLng | null>(null);
@@ -51,7 +44,7 @@ export default function JourneyPage() {
         });
       });
       setOrigin({ lat: sample.coords.latitude, lng: sample.coords.longitude });
-    } catch (e) {
+    } catch {
       setError('No hemos podido obtener tu ubicación. Configúrala manualmente.');
     } finally {
       setPhase('idle');
@@ -72,8 +65,8 @@ export default function JourneyPage() {
       });
       setResults(res.journeys);
       setPhase('results');
-    } catch (e) {
-      setError(`Error: ${e instanceof Error ? e.message : e}`);
+    } catch (err) {
+      setError(`Error: ${err instanceof Error ? err.message : err}`);
       setPhase('error');
     }
   };

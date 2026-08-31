@@ -5,7 +5,6 @@ import {
   canonicalJSON,
   importPublicKeyB64,
   sha256,
-  bytesToBase64Url,
   signMessage,
   importPrivateKeyJwk,
   verifySignature,
@@ -83,7 +82,6 @@ export async function exportMyRoutesAsGeoJSON(): Promise<PortamiExport> {
   // Sign over canonical features JSON
   const featuresCanon = canonicalJSON(features);
   const hash = await sha256(featuresCanon);
-  const featuresHash = bytesToBase64Url(hash);
 
   const privKey = await importPrivateKeyJwk(idStore.identity!.privKeyJwk);
   const sig = await signMessage(privKey, hash);
@@ -130,7 +128,7 @@ export async function importGeoJSON(
     const pubKey = await importPublicKeyB64(sigEntry.by);
     const valid = await verifySignature(pubKey, hash, sigEntry.sig);
     if (!valid) throw new Error('Invalid signature');
-  } catch (e) {
+  } catch {
     readonly = true;
   }
 

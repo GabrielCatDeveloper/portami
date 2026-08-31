@@ -1,11 +1,9 @@
 import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import type { Route } from '@/api/types';
 import { Bell, Plus, Trash, X } from '@/components/icons';
 import {
   addAlert,
   deleteAlert,
-  listAlertsForRoute,
   type StopAlert,
 } from '@/storage/stopAlerts';
 
@@ -31,7 +29,6 @@ const DEFAULT_METERS = 300;
  * Stored locally in IndexedDB. Never synced to the server.
  */
 export function StopAlertsCard({ route, alerts, onChange }: Props) {
-  const { t } = useTranslation();
   const [adding, setAdding] = useState(false);
   const [mode, setMode] = useState<Mode>('minutes');
   const [stopId, setStopId] = useState<string>(route.stops[0]?.id ?? '');

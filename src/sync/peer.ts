@@ -51,7 +51,7 @@ export class Peer {
       try {
         const msg = JSON.parse(e.data) as SyncMessage;
         this.emit('message', msg);
-      } catch (err) {
+      } catch {
         // ignore non-JSON
       }
     };

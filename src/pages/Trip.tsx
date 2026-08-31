@@ -4,11 +4,11 @@ import { useTripStore } from '@/state/trip';
 import { geoWatcher } from '@/geo/watcher';
 import { TripDetector, type DetectorEvent } from '@/geo/tripDetector';
 import { LeafletMap } from '@/components/LeafletMap';
-import { haversine, nearestStop, formatDistance } from '@/geo/distance';
+import { nearestStop, formatDistance } from '@/geo/distance';
 import { useStopAlertWatcher } from '@/geo/useStopAlertWatcher';
 import { resetTriggered } from '@/storage/stopAlerts';
 import { StopAlertsCard } from '@/components/StopAlertsCard';
-import { useTripShareBridge, nextStopInfo } from '@/sync/tripShare';
+import { useTripShareBridge } from '@/sync/tripShare';
 import { useTripShareStore, recipientChip } from '@/state/tripShare';
 import { useIdentityStore } from '@/state/identity';
 import { InviteModal } from '@/components/InviteModal';
@@ -31,6 +31,8 @@ export default function TripPage() {
     if (!route) return;
     detectorRef.current = new TripDetector();
     return () => detectorRef.current?.reset();
+    // The detector is reset and rebuilt only when the route changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route?.id]);
 
   // Permission + watcher setup
@@ -67,6 +69,9 @@ export default function TripPage() {
       geoWatcher.detachTrip();
       geoWatcher.stop();
     };
+    // The watcher lifecycle is tied to the active trip id only;
+    // re-running on every state change would churn the GPS watcher.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTrip?.id]);
 
   // Reset all alerts' "triggered" flag when a new trip starts so that

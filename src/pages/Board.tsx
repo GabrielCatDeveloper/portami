@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Bus, Map as MapIcon, Plus, Check, AlertTriangle, ChevronRight, Navigation } from '@/components/icons';
 import { apiFetch } from '@/api/client';
@@ -10,7 +9,6 @@ import { matchRoutesByProximity, type RouteMatch } from '@/geo/matchRoutes';
 type Phase = 'idle' | 'locating' | 'searching' | 'suggestions' | 'starting' | 'error';
 
 export default function BoardPage() {
-  const { t } = useTranslation();
   const navigate = useNavigate();
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);

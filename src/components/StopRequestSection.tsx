@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import type { Route, StopRequestInfo, BusReport } from '@/api/types';
-import { Bell, Plus, Trash, Camera, Edit, X, Check, Info } from '@/components/icons';
+import { Bell, Plus, Camera, Edit, X, Check } from '@/components/icons';
 import { updateStopRequest } from '@/api/stopRequest';
 import { listBusReports, addBusReport } from '@/api/busReports';
 import { useIdentityStore } from '@/state/identity';
@@ -23,7 +22,6 @@ const STOP_TYPES: Array<{ key: StopRequestInfo['type']; label: string; emoji: st
  * Renders two stacked sections inside the RouteDetail page.
  */
 export function StopRequestSection({ route, onRouteChange }: Props) {
-  const { t } = useTranslation();
   const anonId = useIdentityStore((s) => s.anonId);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<StopRequestInfo | null>(null);
@@ -40,6 +38,9 @@ export function StopRequestSection({ route, onRouteChange }: Props) {
     return () => {
       cancelled = true;
     };
+    // We intentionally depend on route.id only — re-fetching when
+    // other route fields change would be wasteful.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route.id]);
 
   const startEdit = () => {

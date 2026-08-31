@@ -194,7 +194,7 @@ export const useSyncStore = create<SyncState>((set, get) => {
     });
 
     p.on('message', async (msg: SyncMessage) => {
-      await handleMessage(p, msg, get, set, role, deviceId, entry);
+      await handleMessage(p, msg, get, set, role, deviceId);
       // Fan out to per-peer subscribers
       for (const fn of entry.subs) {
         try {
@@ -243,7 +243,6 @@ export const useSyncStore = create<SyncState>((set, get) => {
     set: (partial: Partial<SyncState>) => void,
     role: 'initiator' | 'joiner',
     deviceId: string,
-    entry: PeerEntry,
   ) {
     const state = get();
 
@@ -290,7 +289,6 @@ export const useSyncStore = create<SyncState>((set, get) => {
       const jwk = await decryptIdentityFromPeer(msg);
       const peerPub = state.remotePubKey;
       if (!peerPub) return;
-      const idStore = useIdentityStore.getState();
       p.send({ kind: 'sync-init', lastSyncTs: 0, entityHashes: {} });
       set({ phase: 'syncing', progress: 'Identidad recibida. Sincronizando datos…' });
       void jwk;

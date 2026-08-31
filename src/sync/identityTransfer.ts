@@ -7,7 +7,6 @@ import {
   deriveSharedAesKey,
   aesEncrypt,
   aesDecrypt,
-  importPrivateKeyJwk,
   bytesToBase64Url,
   base64UrlToBytes,
 } from '@/crypto';

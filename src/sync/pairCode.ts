@@ -1,7 +1,7 @@
 // ============================================================
 // Pairing code derivation (verifier for MITM protection)
 // ============================================================
-import { base64UrlToBytes, sha256, bytesToBase32 } from '@/crypto';
+import { sha256, bytesToBase32 } from '@/crypto';
 
 export async function computePairCode(pubA: string, pubB: string): Promise<string> {
   // Canonical order: sort the two pubkeys lexicographically

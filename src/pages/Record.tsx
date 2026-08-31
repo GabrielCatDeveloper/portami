@@ -91,13 +91,7 @@ export default function RecordPage() {
     setPendingCuts([]);
     setPhase('recording');
     // Simulate ~80 samples walking from Puerta del Sol to Atocha (Madrid)
-    // over a fake 4-minute trip, with a couple of stops.
-    const stops: Array<[number, number, number]> = [
-      // [lat, lng, duration in samples]
-      [40.4170, -3.7035, 6], // Plaza Mayor — stop 1
-      [40.4120, -3.6940, 12], // moving
-      [40.4080, -3.6910, 8], // Atocha area — stop 2
-    ];
+    // over a fake 4-minute trip, with periodic stops.
     let i = 0;
     const base = Date.now();
     const totalSamples = 80;

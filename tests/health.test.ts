@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   getHealthSnapshot,
-  startHealthPolling,
   stopHealthPolling,
   subscribeHealth,
   type HealthSnapshot,

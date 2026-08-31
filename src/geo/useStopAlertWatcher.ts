@@ -72,6 +72,8 @@ export function useStopAlertWatcher({ route, sample, enabled }: Options): {
     return () => {
       cancelled = true;
     };
+    // Re-fetch only when the route changes; setAlerts is stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route?.id, setAlerts]);
 
   // Evaluate on every new sample

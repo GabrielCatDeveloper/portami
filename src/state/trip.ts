@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import type { Route, GPSSample, Trip, Journey } from '@/api/types';
 import { apiFetch } from '@/api/client';
-import { randomUUID } from '@/crypto';
 
 export type TripPhase = 'idle' | 'starting' | 'onTrip' | 'ending' | 'ended';
 

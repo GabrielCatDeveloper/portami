@@ -7,13 +7,15 @@ import type { PairedDevice } from '@/api/types';
 export default function SyncPage() {
   const { t } = useTranslation();
   const sync = useSyncStore();
+  const phase = sync.phase;
+  const loadPairedDevices = sync.loadPairedDevices;
   const [pasteValue, setPasteValue] = useState('');
   const [copied, setCopied] = useState(false);
   const [devices, setDevices] = useState<PairedDevice[]>([]);
 
   useEffect(() => {
-    void sync.loadPairedDevices().then(setDevices);
-  }, [sync.phase]);
+    void loadPairedDevices().then(setDevices);
+  }, [phase, loadPairedDevices]);
 
   const copy = async (text: string) => {
     await navigator.clipboard.writeText(text);

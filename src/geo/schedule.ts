@@ -1,6 +1,6 @@
 // Helpers for schedules and incidents.
 
-import type { Schedule, Route, Incident } from '@/api/types';
+import type { Route, Incident } from '@/api/types';
 
 const DAY_NAMES = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const FULL_DAY_NAMES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
