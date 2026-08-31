@@ -613,10 +613,10 @@ p { margin: 0; }
    Map
    ============================================================ */
 .map-container {
-  /* Fill .app-main exactly. .app-main is the single scroll container
-     (set above), so this keeps the map at full viewport while leaving
-     no extra space for the page to scroll under the map. */
-  height: 100%;
+  /* Explicit height that subtracts the bottom-nav and safe areas so
+     the map NEVER extends under the nav — the nav stays a solid bar
+     at the bottom of the viewport at all times. */
+  height: calc(100dvh - var(--safe-top) - var(--bottom-nav-h) - var(--safe-bottom));
   width: 100%;
   position: relative;
   background: var(--bg-subtle);

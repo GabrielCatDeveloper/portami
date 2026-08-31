@@ -25,11 +25,11 @@ import { clientsClaim } from 'workbox-core';
 declare const self: ServiceWorkerGlobalScope;
 
 // Increment whenever the SW logic changes in a way that requires all
-// clients to drop their old runtime caches. Bumped to v9: Explore page
-// had a counter badge with z-index:1000 that was covering the bottom
-// nav (z-index:100). Lowered the badge z-index to 50 and moved it
-// above the nav so the nav is always visible and reachable.
-const CACHE_VERSION = 9;
+// clients to drop their old runtime caches. Bumped to v10: the Explore
+// map was painting under the bottom nav on mobile (Leaflet/relative
+// container vs. fixed nav). Now the map uses an explicit height that
+// subtracts the nav and safe areas so the nav is always a solid bar.
+const CACHE_VERSION = 10;
 
 self.skipWaiting();
 clientsClaim();
