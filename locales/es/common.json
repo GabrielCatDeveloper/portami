@@ -18,6 +18,7 @@
     "nearby": "Rutas cercanas",
     "noNearby": "No encontramos rutas cerca. Activa el GPS o explora el mapa.",
     "exploreMap": "Explorar el mapa",
+    "board": "He subido a un bus/tren",
     "favorites": "Mis favoritas",
     "seeAll": "Ver todas",
     "startTrip": "Iniciar viaje",
@@ -69,6 +70,23 @@
     "current": "Estás aquí",
     "passed": "Pasada",
     "alightHere": "Bajar aquí"
+  },
+  "board": {
+    "title": "Subir a un bus/tren",
+    "locating": "Detectando tu ubicación…",
+    "searching": "Buscando rutas cercanas…",
+    "noMatch": "No hay rutas que coincidan. ¿Es un trayecto nuevo?",
+    "confirm": "¿Es alguna de estas rutas? Cuanto más cerca, más probable.",
+    "recordNew": "Ninguna coincide — grabar nueva",
+    "again": "Buscar de nuevo",
+    "retry": "Reintentar",
+    "eta": {
+      "title": "Tiempo estimado de llegada",
+      "estimation": "Estimación",
+      "next": "Próxima",
+      "disclaimer": "Calculado desde la posición del bus. Es una estimación — puede variar según tráfico, semáforos y paradas.",
+      "live": "{n} en ruta ahora"
+    }
   },
   "record": {
     "start": "Grabar ruta",

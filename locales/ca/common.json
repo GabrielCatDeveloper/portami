@@ -18,6 +18,7 @@
     "nearby": "Rutes properes",
     "noNearby": "No trobem rutes a prop. Activa el GPS o explora el mapa.",
     "exploreMap": "Explorar el mapa",
+    "board": "He pujat a un bus/tren",
     "favorites": "Les meves favorites",
     "seeAll": "Veure totes",
     "startTrip": "Iniciar viatge",
@@ -69,6 +70,23 @@
     "current": "Ets aquí",
     "passed": "Passada",
     "alightHere": "Baixar aquí"
+  },
+  "board": {
+    "title": "Pujar a un bus/tren",
+    "locating": "Detectant la teva ubicació…",
+    "searching": "Cercant rutes properes…",
+    "noMatch": "No hi ha rutes que coincideixin. És un trajecte nou?",
+    "confirm": "És alguna d'aquestes rutes? Com més a prop, més probable.",
+    "recordNew": "Cap coincideix — gravar nova",
+    "again": "Cercar de nou",
+    "retry": "Tornar a intentar",
+    "eta": {
+      "title": "Temps estimat d'arribada",
+      "estimation": "Estimació",
+      "next": "Proper",
+      "disclaimer": "Calculat des de la posició del bus. És una estimació — pot variar segons trànsit, semàfors i parades.",
+      "live": "{n} en ruta ara"
+    }
   },
   "record": {
     "start": "Gravar ruta",

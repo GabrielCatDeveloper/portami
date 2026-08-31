@@ -18,6 +18,7 @@
     "nearby": "Routes nearby",
     "noNearby": "No routes found nearby. Turn on GPS or explore the map.",
     "exploreMap": "Explore the map",
+    "board": "I just boarded a bus/train",
     "favorites": "My favorites",
     "seeAll": "See all",
     "startTrip": "Start trip",
@@ -69,6 +70,23 @@
     "current": "You are here",
     "passed": "Passed",
     "alightHere": "Get off here"
+  },
+  "board": {
+    "title": "Board a bus/train",
+    "locating": "Detecting your location…",
+    "searching": "Searching nearby routes…",
+    "noMatch": "No matching routes. Is this a new trip?",
+    "confirm": "Is it one of these routes? The closer, the more likely.",
+    "recordNew": "None match — record a new one",
+    "again": "Search again",
+    "retry": "Retry",
+    "eta": {
+      "title": "Estimated time of arrival",
+      "estimation": "Estimation",
+      "next": "Next",
+      "disclaimer": "Calculated from the bus's current position. This is an estimate — actual arrival may vary with traffic, signals and stops.",
+      "live": "{n} en route now"
+    }
   },
   "record": {
     "start": "Record route",
