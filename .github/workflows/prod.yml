@@ -1,16 +1,21 @@
 name: Build & Deploy (prod)
 
 on:
-  # Trigger on push to main (the source branch you work on).
-  # Publishes the compiled site into the prod branch, which GitHub Pages
-  # serves at https://<user>.github.io/portami/.
+# Trigger on push to main, but ONLY when src/sw.ts (the service worker)
+  # is modified. This prevents accidental deploys on README edits, comment
+  # changes, refactors of unrelated files, etc.
+  #
+  # The Service Worker is the single most deployment-sensitive file: any
+  # change to caching strategy, offline behaviour, notification handlers,
+  # or scope handling must be validated in production.
   #
   # NOTE: we cannot trigger on push to prod directly, because peaceiris/
-  # actions-gh-pages refuses to publish a branch to itself ("You deploy from
-  # prod to prod"). The recommended alternative is to publish on every push
-  # to main; workflow_dispatch is also available for manual deploys.
+  # actions-gh-pages refuses to publish from prod to prod. workflow_dispatch
+  # is also available for manual deploys.
   push:
     branches: [main]
+    paths:
+      - 'src/sw.ts'
     paths-ignore:
       - 'dist/**'
       - 'assets/**'
