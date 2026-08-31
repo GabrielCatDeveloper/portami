@@ -56,7 +56,7 @@ export default function ExplorePage() {
             background: 'var(--overlay-strong)',
             borderRadius: 'var(--r-md)',
             padding: '12px 14px',
-            zIndex: 1000,
+            zIndex: 50,
             display: 'flex',
             alignItems: 'center',
             gap: 8,
@@ -69,16 +69,17 @@ export default function ExplorePage() {
       <div
         style={{
           position: 'absolute',
-          bottom: 12,
+          bottom: 'calc(var(--bottom-nav-h) + var(--safe-bottom) + 12px)',
           left: 12,
           right: 12,
           background: 'var(--overlay-strong)',
           borderRadius: 'var(--r-md)',
           padding: '10px 14px',
-          zIndex: 1000,
+          zIndex: 50,
           textAlign: 'center',
           fontSize: 'var(--fs-sm)',
           color: 'var(--text-muted)',
+          boxShadow: 'var(--shadow-sm)',
         }}
       >
         {routes.length} {t('routes.list').toLowerCase()}

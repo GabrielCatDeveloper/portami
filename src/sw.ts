@@ -25,10 +25,11 @@ import { clientsClaim } from 'workbox-core';
 declare const self: ServiceWorkerGlobalScope;
 
 // Increment whenever the SW logic changes in a way that requires all
-// clients to drop their old runtime caches. Bumped to v8: GitHub link
-// in Settings now points to the actual repo
-// (GabrielCatDeveloper/portami) instead of github.com generic.
-const CACHE_VERSION = 8;
+// clients to drop their old runtime caches. Bumped to v9: Explore page
+// had a counter badge with z-index:1000 that was covering the bottom
+// nav (z-index:100). Lowered the badge z-index to 50 and moved it
+// above the nav so the nav is always visible and reachable.
+const CACHE_VERSION = 9;
 
 self.skipWaiting();
 clientsClaim();

@@ -375,7 +375,8 @@ p { margin: 0; }
   -webkit-backdrop-filter: blur(20px);
   display: flex;
   justify-content: space-around;
-  z-index: 100;
+  /* Stay above any in-page overlay (badges, popovers, dialogs). */
+  z-index: 200;
 }
 
 .bottom-nav-item {
