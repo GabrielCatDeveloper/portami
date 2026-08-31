@@ -12,6 +12,8 @@ PWA anónima y colaborativa para rastrear buses y trens en tiempo real.
 - **Avisos contextuales**: notificación local cuando te acercas a tu parada.
 - **Edición comunitaria**: cualquier usuario puede proponer cambios a una ruta. Para aplicarse se necesitan 5 aprobaciones (5 rechazos la descartan).
 - **Sincronización WebRTC entre tus dispositivos**: empareja dos aparatos con QR/copia-pega y código verificador; tu identidad, rutas y propuestas se transfieren cifradas (ECDH + AES-GCM).
+- **Compartir viaje con amigos (P2P multi-peer)**: al iniciar un viaje, envía la planificación y tu ubicación en directo a **N amigos emparejados simultáneamente** por WebRTC (canal de datos, sin servidor). Cada destinatario tiene estado propio (entregado / reintentando / fallido / sin conexión) y reintento manual o automático al reconectarse.
+- **Fallback externo sin servidor**: si un amigo no responde por WebRTC, le envías un enlace por WhatsApp / Telegram / SMS. Cuando lo abre en portami, se reconnecta automáticamente y empieza a recibir el viaje.
 - **Import/Export GeoJSON**: respalda tus rutas con un archivo GeoJSON firmado.
 - **Multilenguaje**: Español, Català, English.
 - **Offline-first**: rutas favoritas, identidad y viaje activo disponibles sin red.
@@ -85,6 +87,32 @@ Canonical JSON: claves ordenadas, sin espacios, sin `undefined`.
 5. ECDH efímero + AES-GCM transfiere la clave privada de usuario.
 6. Diff + sync de rutas y propuestas.
 
+## Compartir viaje con amigos
+
+Una vez emparejado con al menos un amigo (vía el flujo de Pairing WebRTC), puedes compartirle tu viaje en directo. El envío es **siempre P2P**: ni el server ni ningún intermediario ve la planificación del viaje ni tu ubicación en directo — esos datos viajan por el canal de datos WebRTC entre tu dispositivo y el de tu amigo.
+
+Estados por destinatario (visibles en la pantalla de viaje):
+
+| Estado | Significado |
+|---|---|
+| ✓ entregado | Tu amigo ha confirmado la recepción (`trip-share-ack`) |
+| ⟳ reintentando | Aún no hay ack; reintentaremos en 10s |
+| ⚠ sin conexión | El amigo está desconectado ahora mismo |
+| ✗ fallido | Un envío y un reintento sin respuesta. Puedes reintentar manualmente |
+
+**Si un amigo está sin conexión**, pulsa el botón `↗` junto a su nombre para generar un enlace que puedes enviarle por WhatsApp, Telegram o SMS. Cuando lo abra en portami, se reconnectará automáticamente y empezará a recibir tu viaje (la app le mostrará la planificación completa + tu ubicación en directo, actualizada cada minuto).
+
+Detalles del protocolo (resumido):
+
+```
+sender → receiver   trip-share-start   { tripShareId, fromAnonId, routeName, plannedRoute, startedAt }
+sender → receiver   trip-share-location (cada 60s)  { tripShareId, ts, lat, lng, speed?, nextStopName?, etaNextStopS? }
+sender → receiver   trip-share-end     { tripShareId, ts, reason }
+receiver → sender   trip-share-ack     { tripShareId, recipientAnonId, ts, ackFor: 'start' | 'location' | 'end' }
+```
+
+El `tripShareId` se genera al iniciar el viaje y correlaciona todos los mensajes de ese envío. La persistencia es local (`outgoingTripShares` / `incomingTripShares` en IndexedDB, TTL 7 días).
+
 ## Privacidad
 
 - Sin tracking, sin cookies, sin analytics.
@@ -100,6 +128,8 @@ Canonical JSON: claves ordenadas, sin espacios, sin `undefined`.
 - [ ] PWA instalable con prompt automático
 - [ ] Soporte iOS Safari (Service Worker requiere "Add to Home Screen")
 - [ ] Documentación del servidor y su protocolo
+
+Ver [ROADMAP.md](./ROADMAP.md) para el plan completo, incluyendo el **Hito 7 — Compartir viaje con amigos (P2P multi-peer + fallback externo)** que ya está completado.
 
 ## Licencia
 
