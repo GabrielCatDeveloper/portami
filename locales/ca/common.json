@@ -44,6 +44,37 @@
     "liveSharing": "Compartint ubicació anònimament",
     "liveSharingOff": "Sense compartir"
   },
+  "invite": {
+    "title": "Convidar {{name}} per una altra app",
+    "subtitle": "Genera un enllaç que pots enviar per WhatsApp, Telegram o SMS. Quan el teu contacte l'obri a portami, rebrà el teu viatge.",
+    "generating": "Generant enllaç…",
+    "copy": "Copia l'enllaç",
+    "share": "Compartir",
+    "shareVia": "Envia per",
+    "whatsapp": "WhatsApp",
+    "telegram": "Telegram",
+    "sms": "SMS",
+    "copied": "Copiat!",
+    "cancel": "Cancel·la",
+    "error": "No s'ha pogut generar l'enllaç",
+    "notSupported": "El teu navegador no suporta WebRTC; no podem crear l'enllaç."
+  },
+  "connect": {
+    "title": "Rebre invitació",
+    "subtitle": "{{alias}} vol compartir el seu viatge amb tu.",
+    "generating": "Generant resposta…",
+    "sendBack": "Envia aquesta resposta a {{alias}} per la mateixa app",
+    "answerReady": "La teva resposta està a punt",
+    "answerCopyHint": "Copia aquest enllaç i enganxa'l al xat amb {{alias}}",
+    "sendBackVia": "Envia la resposta per",
+    "waitingTitle": "Esperant resposta de {{alias}}",
+    "waitingSubtitle": "Quan obris l'enllaç de tornada a portami, la connexió es completarà automàticament.",
+    "invalidLink": "Aquest enllaç d'invitació no és vàlid",
+    "notForYou": "Aquesta resposta no és per a tu",
+    "processing": "Processant resposta…",
+    "success": "Connectat! Rebràs el viatge en directe.",
+    "error": "No s'ha pogut completar la connexió"
+  },
   "routes": {
     "list": "Rutes",
     "nearYou": "A prop teu",
