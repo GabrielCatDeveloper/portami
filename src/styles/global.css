@@ -135,7 +135,12 @@
    ============================================================ */
 *, *::before, *::after { box-sizing: border-box; }
 
-html, body, #root { height: 100%; }
+html, body, #root {
+  height: 100%;
+  /* Lock the document: scrolling lives inside .app-main only.
+     Prevents the "double scroll" (body + .app-main both scrolling). */
+  overflow: hidden;
+}
 
 body {
   margin: 0;
@@ -192,12 +197,22 @@ p { margin: 0; }
 .app {
   display: flex;
   flex-direction: column;
-  min-height: 100dvh;
+  /* Exact viewport height — no grow. Combined with body overflow:hidden
+     above, this is the only scroll context. */
+  height: 100dvh;
   padding-top: var(--safe-top);
+  overflow: hidden;
 }
 
 .app-main {
   flex: 1;
+  /* min-height:0 lets the flex item actually shrink so overflow-y can
+     take over without growing the parent. Without this, flex items
+     default to min-height:auto and refuse to scroll. */
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
   padding-bottom: calc(var(--bottom-nav-h) + var(--safe-bottom));
   position: relative;
 }
@@ -597,7 +612,10 @@ p { margin: 0; }
    Map
    ============================================================ */
 .map-container {
-  height: calc(100dvh - var(--bottom-nav-h) - var(--safe-bottom) - var(--safe-top));
+  /* Fill .app-main exactly. .app-main is the single scroll container
+     (set above), so this keeps the map at full viewport while leaving
+     no extra space for the page to scroll under the map. */
+  height: 100%;
   width: 100%;
   position: relative;
   background: var(--bg-subtle);

@@ -25,9 +25,10 @@ import { clientsClaim } from 'workbox-core';
 declare const self: ServiceWorkerGlobalScope;
 
 // Increment whenever the SW logic changes in a way that requires all
-// clients to drop their old runtime caches. Bumped to v3 for this release:
-// always show the bottom nav (was hidden on /trip and /record).
-const CACHE_VERSION = 3;
+// clients to drop their old runtime caches. Bumped to v4: lock the document
+// scroll so only .app-main (and inside it the map) can scroll — fixes the
+// mobile "double scroll" issue.
+const CACHE_VERSION = 4;
 
 self.skipWaiting();
 clientsClaim();
