@@ -23,6 +23,8 @@ export default function RecordPage() {
   const [title, setTitle] = useState('');
   const [error, setError] = useState<string | null>(null);
   const recordingIdRef = useRef<string | null>(null);
+  const listenerCleanupRef = useRef<(() => void) | null>(null);
+  const demoTimerRef = useRef<number | null>(null);
 
   // Update trim end whenever samples change
   useEffect(() => {
@@ -30,9 +32,21 @@ export default function RecordPage() {
   }, [samples.length]);
 
   const startRecording = async () => {
-    const perm = await geoWatcher.requestPermission();
+    setError(null);
+    let perm = await geoWatcher.checkPermission();
     if (perm !== 'granted') {
-      setError(t('trip.permissionNeeded'));
+      perm = await geoWatcher.requestPermission();
+    }
+    if (perm !== 'granted') {
+      if (perm === 'denied') {
+        setError(
+          'Permiso de GPS denegado. Actívalo en los ajustes del navegador y vuelve a intentarlo.',
+        );
+      } else if (perm === 'error' || !('geolocation' in navigator)) {
+        setError('Tu navegador no soporta geolocalización. Usa un navegador moderno o prueba el modo demo.');
+      } else {
+        setError(t('trip.permissionNeeded'));
+      }
       return;
     }
     recordingIdRef.current = randomUUID();
@@ -41,15 +55,63 @@ export default function RecordPage() {
     setTrimEnd(0);
     setPendingCuts([]);
     setPhase('recording');
-    setError(null);
-    geoWatcher.start();
-    geoWatcher.on((s) => {
+    // De-register any previous listener to avoid duplicates on re-record
+    listenerCleanupRef.current?.();
+    listenerCleanupRef.current = geoWatcher.on((s) => {
       setSamples((prev) => [...prev, s]);
     });
+    geoWatcher.start();
+  };
+
+  const startDemoRecording = () => {
+    setError(null);
+    recordingIdRef.current = randomUUID();
+    setSamples([]);
+    setTrimStart(0);
+    setTrimEnd(0);
+    setPendingCuts([]);
+    setPhase('recording');
+    // Simulate ~80 samples walking from Puerta del Sol to Atocha (Madrid)
+    // over a fake 4-minute trip, with a couple of stops.
+    const stops: Array<[number, number, number]> = [
+      // [lat, lng, duration in samples]
+      [40.4170, -3.7035, 6], // Plaza Mayor — stop 1
+      [40.4120, -3.6940, 12], // moving
+      [40.4080, -3.6910, 8], // Atocha area — stop 2
+    ];
+    let i = 0;
+    const base = Date.now();
+    const totalSamples = 80;
+    demoTimerRef.current = window.setInterval(() => {
+      if (i >= totalSamples) {
+        if (demoTimerRef.current) window.clearInterval(demoTimerRef.current);
+        demoTimerRef.current = null;
+        return;
+      }
+      // Interpolate along a noisy path
+      const phase = i / totalSamples;
+      const lat = 40.4170 + (40.4080 - 40.4170) * phase + (Math.random() - 0.5) * 0.0005;
+      const lng = -3.7035 + (-3.6910 - -3.7035) * phase + (Math.random() - 0.5) * 0.0005;
+      // Add a "stop" every 12 samples
+      const speed = i % 12 < 6 ? 0.2 : 4.5;
+      const sample: GPSSample = {
+        ts: base + i * 3000,
+        lat,
+        lng,
+        acc: 8 + Math.random() * 5,
+        speed,
+      };
+      setSamples((prev) => [...prev, sample]);
+      i++;
+    }, 200);
   };
 
   const stopRecording = () => {
     geoWatcher.stop();
+    if (demoTimerRef.current) {
+      window.clearInterval(demoTimerRef.current);
+      demoTimerRef.current = null;
+    }
     if (samples.length < 5) {
       setError('Necesitamos más muestras para formar una ruta');
       setPhase('idle');
@@ -186,19 +248,42 @@ export default function RecordPage() {
           <p className="mb-4">
             Graba un trayecto real en bus o tren. Al finalizar podrás revisar la ruta, eliminar tramos y nombrarla antes de guardarla.
           </p>
-          <button type="button" className="btn btn-primary btn-lg" onClick={startRecording}>
-            <RecordIcon size={20} /> {t('record.start')}
-          </button>
-          {error && <div className="banner banner-danger mt-3">{error}</div>}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+              maxWidth: 320,
+              margin: '0 auto',
+            }}
+          >
+            <button type="button" className="btn btn-primary btn-lg btn-block" onClick={startRecording}>
+              <RecordIcon size={20} /> {t('record.start')}
+            </button>
+            <button
+              type="button"
+              className="btn btn-block"
+              onClick={startDemoRecording}
+              title="Genera una grabación de prueba sin usar el GPS real"
+            >
+              Modo demo (sin GPS)
+            </button>
+          </div>
+          {error && (
+            <div className="banner banner-danger mt-3" style={{ textAlign: 'left', maxWidth: 360, margin: '12px auto 0' }}>
+              {error}
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
   if (phase === 'recording') {
+    const lastSample = samples[samples.length - 1];
     return (
       <div>
-        <div style={{ height: '55vh' }}>
+        <div style={{ height: '55vh', position: 'relative' }}>
           <LeafletMap
             routes={[
               {
@@ -211,9 +296,33 @@ export default function RecordPage() {
                 active: true,
               },
             ]}
-            userPosition={samples.length ? { lat: samples[samples.length - 1].lat, lng: samples[samples.length - 1].lng } : null}
+            userPosition={lastSample ? { lat: lastSample.lat, lng: lastSample.lng } : null}
             followUser
           />
+          {samples.length === 0 && (
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'grid',
+                placeItems: 'center',
+                background: 'var(--overlay-strong)',
+                zIndex: 500,
+                padding: 24,
+                textAlign: 'center',
+              }}
+            >
+              <div>
+                <div className="empty-illustration" style={{ margin: '0 auto 12px' }}>
+                  <RecordIcon size={32} />
+                </div>
+                <p style={{ fontWeight: 600 }}>Esperando GPS…</p>
+                <p className="text-sm text-muted">
+                  Sal a la calle o acércate a una ventana. La primera señal puede tardar unos segundos.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
         <div className="page">
           <div className="card" style={{ background: 'var(--danger)', color: 'white' }}>
@@ -221,8 +330,12 @@ export default function RecordPage() {
               <RecordIcon size={20} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600 }}>Grabando</div>
-                <div style={{ fontSize: 'var(--fs-sm)', opacity: 0.92 }}>{samples.length} puntos</div>
+                <div style={{ fontSize: 'var(--fs-sm)', opacity: 0.92 }}>
+                  {samples.length} puntos
+                  {lastSample?.speed != null && ` · ${(lastSample.speed * 3.6).toFixed(0)} km/h`}
+                </div>
               </div>
+              <span className="trip-banner-pulse" aria-hidden />
             </div>
           </div>
           <button type="button" className="btn btn-danger btn-lg btn-block mt-3" onClick={stopRecording}>

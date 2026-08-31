@@ -62,13 +62,23 @@ export default function SyncPage() {
               Sincroniza tu identidad, rutas y propuestas con otro dispositivo por WebRTC. Sin servidor intermedio.
             </p>
 
-            <div className="row gap-2" style={{ justifyContent: 'center' }}>
-              <button type="button" className="btn btn-primary btn-lg" onClick={onStartPair}>
+            <div
+              className="sync-actions"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+                width: '100%',
+                maxWidth: 360,
+                margin: '0 auto',
+              }}
+            >
+              <button type="button" className="btn btn-primary btn-lg btn-block" onClick={onStartPair}>
                 <QR size={20} /> {t('sync.pairInit')}
               </button>
               <button
                 type="button"
-                className="btn btn-lg"
+                className="btn btn-lg btn-block"
                 onClick={() => {
                   void sync.reset();
                   const newText = window.prompt('Pega el offer SDP del otro dispositivo:');
