@@ -7,6 +7,10 @@ import App from './App';
 import { startMockServer } from '../mocks/browser';
 import './i18n';
 
+// Must match the `base` config in vite.config.ts. Read from the same env
+// var so dev (/) and production (/portami/) work correctly.
+const basename = import.meta.env.VITE_BASE_PATH || '/';
+
 async function bootstrap() {
   if (import.meta.env.DEV) {
     await startMockServer();
@@ -15,7 +19,7 @@ async function bootstrap() {
   const root = createRoot(document.getElementById('root')!);
   root.render(
     <StrictMode>
-      <BrowserRouter>
+      <BrowserRouter basename={basename}>
         <App />
       </BrowserRouter>
     </StrictMode>,
