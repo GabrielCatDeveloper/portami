@@ -11,6 +11,9 @@
 // IMPORTANT: all asset URLs (icons, navigation) are resolved against
 // self.registration.scope so the SW works under any base path
 // (GitHub Pages /portami/, custom domain /, etc.).
+//
+// Bump CACHE_VERSION whenever the SW logic changes in a way that requires
+// all clients to drop their old runtime caches.
 // ============================================================
 
 import { precacheAndRoute } from 'workbox-precaching';
@@ -20,6 +23,10 @@ import { ExpirationPlugin } from 'workbox-expiration';
 import { clientsClaim } from 'workbox-core';
 
 declare const self: ServiceWorkerGlobalScope;
+
+// Increment whenever the SW logic changes in a way that requires all
+// clients to drop their old runtime caches. Bumped to v2 for this release.
+const CACHE_VERSION = 2;
 
 self.skipWaiting();
 clientsClaim();
@@ -37,7 +44,7 @@ registerRoute(
     url.hostname.endsWith('tile.openstreetmap.org') ||
     url.hostname.endsWith('basemaps.cartocdn.com'),
   new CacheFirst({
-    cacheName: 'portami-tiles-v1',
+    cacheName: `portami-tiles-v${CACHE_VERSION}`,
     plugins: [
       new ExpirationPlugin({
         maxEntries: 4000,
@@ -52,7 +59,7 @@ registerRoute(
 registerRoute(
   ({ url, request }) => url.pathname.startsWith('/api/') && request.method === 'GET',
   new NetworkFirst({
-    cacheName: 'portami-api-v1',
+    cacheName: `portami-api-v${CACHE_VERSION}`,
     networkTimeoutSeconds: 4,
     plugins: [
       new ExpirationPlugin({
