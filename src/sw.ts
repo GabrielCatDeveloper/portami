@@ -25,13 +25,12 @@ import { clientsClaim } from 'workbox-core';
 declare const self: ServiceWorkerGlobalScope;
 
 // Increment whenever the SW logic changes in a way that requires all
-// clients to drop their old runtime caches. Bumped to v23: testing
-// mode (Settings → Testing) + synthetic GPS source. This lets the app
-// run entirely offline (MSW + synthetic positions), independent of
-// the backend — useful when the server is unreachable or its CORS
-// isn't configured for our origin (e.g. fresh GitHub Pages deploy
-// before Deno Deploy finishes picking up the CORS commit).
-const CACHE_VERSION = 23;
+// clients to drop their old runtime caches. Bumped to v24: re-point
+// the production build to the new Deno Deploy project
+// (portami-server-6mv9bn5jhvvb) which has the CORS middleware
+// active, and switch VITE_BASE_PATH from /portami/ to / so the app
+// can be served at https://gabrielcatdeveloper.github.io/ root.
+const CACHE_VERSION = 24;
 
 self.skipWaiting();
 clientsClaim();
