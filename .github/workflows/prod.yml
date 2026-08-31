@@ -14,24 +14,10 @@ on:
   # is also available for manual deploys.
   push:
     branches: [main]
+    # Build ONLY fires when src/sw.ts is modified. Any other push (README,
+    # comments, refactors of unrelated files) is ignored.
     paths:
       - 'src/sw.ts'
-    paths-ignore:
-      - 'dist/**'
-      - 'assets/**'
-      - 'icons/**'
-      - 'locales/**'
-      - 'sw.js'
-      - 'sw.js.map'
-      - 'manifest.webmanifest'
-      - 'index.html'
-      - 'mockServiceWorker.js'
-      - '*.png'
-      - '*.svg'
-      - '*.webp'
-      - '*.ico'
-      - '.nojekyll'
-      - 'CNAME'
   workflow_dispatch:
 
 permissions:
