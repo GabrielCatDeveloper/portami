@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Routes, Route, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useIdentityStore } from '@/state/identity';
 import { Home as HomeIcon, Map, Record as RecordIcon, Sync as SyncIcon, Settings as SettingsIcon } from '@/components/icons';
@@ -17,7 +17,6 @@ export default function App() {
   const { t } = useTranslation();
   const init = useIdentityStore((s) => s.init);
   const initialized = useIdentityStore((s) => s.initialized);
-  const location = useLocation();
   const navigate = useNavigate();
   const [bootError, setBootError] = useState<string | null>(null);
 
@@ -42,8 +41,6 @@ export default function App() {
     );
   }
 
-  const showNav = !['/trip', '/record'].some((p) => location.pathname.startsWith(p));
-
   return (
     <div className="app">
       <TripBanner onEndClick={() => navigate('/trip')} />
@@ -59,30 +56,28 @@ export default function App() {
         </Routes>
       </main>
 
-      {showNav && (
-        <nav className="bottom-nav" aria-label="primary">
-          <NavLink to="/" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
-            <HomeIcon size={22} />
-            <span>{t('nav.home')}</span>
-          </NavLink>
-          <NavLink to="/explore" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
-            <Map size={22} />
-            <span>{t('nav.explore')}</span>
-          </NavLink>
-          <NavLink to="/record" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
-            <RecordIcon size={22} />
-            <span>{t('nav.record')}</span>
-          </NavLink>
-          <NavLink to="/sync" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
-            <SyncIcon size={22} />
-            <span>{t('nav.sync')}</span>
-          </NavLink>
-          <NavLink to="/settings" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
-            <SettingsIcon size={22} />
-            <span>{t('nav.settings')}</span>
-          </NavLink>
-        </nav>
-      )}
+      <nav className="bottom-nav" aria-label="primary">
+        <NavLink to="/" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
+          <HomeIcon size={22} />
+          <span>{t('nav.home')}</span>
+        </NavLink>
+        <NavLink to="/explore" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
+          <Map size={22} />
+          <span>{t('nav.explore')}</span>
+        </NavLink>
+        <NavLink to="/record" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
+          <RecordIcon size={22} />
+          <span>{t('nav.record')}</span>
+        </NavLink>
+        <NavLink to="/sync" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
+          <SyncIcon size={22} />
+          <span>{t('nav.sync')}</span>
+        </NavLink>
+        <NavLink to="/settings" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
+          <SettingsIcon size={22} />
+          <span>{t('nav.settings')}</span>
+        </NavLink>
+      </nav>
     </div>
   );
 }
