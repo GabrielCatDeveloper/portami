@@ -36,8 +36,8 @@ describe('matchRoutesByProximity', () => {
       { lat: 40.4150, lng: -3.7070 },
       [far, sampleRoute],
     );
-    expect(matches[0].route.id).toBe('r1');
-    expect(matches[0].distanceM).toBeLessThan(20);
+    expect(matches[0]?.route.id).toBe('r1');
+    expect(matches[0]?.distanceM).toBeLessThan(20);
   });
 
   it('orders by score (closer + longer = higher score)', () => {
@@ -55,7 +55,7 @@ describe('matchRoutesByProximity', () => {
     );
     // The longer route that passes close to the point should rank higher
     // than the shorter route that passes close to the point.
-    expect(matches[0].route.id).toBe('r-long');
+    expect(matches[0]?.route.id).toBe('r-long');
   });
 
   it('excludes routes outside the radius', () => {
@@ -98,7 +98,7 @@ describe('estimateStopEtas', () => {
     expect(etas.length).toBe(3);
     // Sorted by distance ascending
     for (let i = 1; i < etas.length; i++) {
-      expect(etas[i].distanceM).toBeGreaterThanOrEqual(etas[i - 1].distanceM);
+      expect(etas[i]?.distanceM).toBeGreaterThanOrEqual(etas[i - 1]?.distanceM ?? 0);
     }
   });
 

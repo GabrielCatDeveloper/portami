@@ -109,8 +109,8 @@ describe('outgoingTripShares store', () => {
       status: 'delivered',
       deliveredAt: 1000,
     });
-    expect(next?.recipients['peer-A'].status).toBe('delivered');
-    expect(next?.recipients['peer-A'].deliveredAt).toBe(1000);
+    expect(next?.recipients['peer-A']?.status).toBe('delivered');
+    expect(next?.recipients['peer-A']?.deliveredAt).toBe(1000);
   });
 
   it('updateOutgoingRecipient returns the existing row when recipient is unknown', async () => {
@@ -153,7 +153,7 @@ describe('incomingTripShares store', () => {
     await putIncomingShare(mkIncoming({ routeName: 'L2' }));
     const list = await listIncomingShares();
     expect(list).toHaveLength(1);
-    expect(list[0].routeName).toBe('L2');
+    expect(list[0]?.routeName).toBe('L2');
   });
 
   it('listActiveIncomingShares filters out ended ones', async () => {

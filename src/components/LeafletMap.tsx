@@ -2,8 +2,11 @@ import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import type { Route, LatLng, VehicleKind } from '@/api/types';
 
-// Workaround for default marker icons in bundlers
-delete (L.Icon.Default.prototype as any)._getIconUrl;
+// Leaflet's typing declares `_getIconUrl` as private but bundlers
+// need to delete it on the prototype before `mergeOptions` can
+// substitute the icon URLs. The double-cast avoids `any` and keeps
+// the field inaccessible from app code.
+delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -88,11 +91,18 @@ export function LeafletMap({
       attributionControl: true,
     }).setView([40.4194, -3.6931], 12);
 
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    // `loading="lazy"` is honoured by Leaflet on the <img> elements
+    // it creates for each tile, deferring off-screen fetches until
+    // the tile scrolls into view. This avoids the burst of 30+
+    // tile requests the map fires on first mount, which is the
+    // single biggest CPU/network cost on the explore page.
+    const tileOptions = {
       maxZoom: 19,
       attribution: '© OpenStreetMap',
       className: 'portami-tile',
-    }).addTo(map);
+      loading: 'lazy',
+    } as unknown as L.TileLayerOptions;
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', tileOptions).addTo(map);
 
     L.control.zoom({ position: 'topright' }).addTo(map);
 
@@ -183,13 +193,12 @@ export function LeafletMap({
     layer.clearLayers();
     if (!activeBuses) return;
     for (const b of activeBuses) {
-      const kind = (b as any).vehicleKind as VehicleKind | undefined;
+      const kind = (b as { vehicleKind?: VehicleKind }).vehicleKind;
       const icon = vehicleIcon(kind ?? 'bus');
       const label = vehicleEmoji(kind);
-      const marker = L.marker([b.position.lat, b.position.lng], { icon })
+      L.marker([b.position.lat, b.position.lng], { icon })
         .bindTooltip(`${label} · #${b.anonId.slice(0, 6)}`)
         .addTo(layer);
-      void marker;
     }
   }, [activeBuses]);
 

@@ -11,6 +11,7 @@ import {
   randomUUID,
 } from '@/crypto';
 import { getDB } from '@/storage/db';
+import type { Route, RouteDiff, RouteEditProposal } from '@/api/types';
 
 export type PortamiExport = {
   type: 'FeatureCollection';
@@ -21,12 +22,34 @@ export type PortamiExport = {
     ownerAnonId: string;
     signatures: Array<{ over: 'features-hash'; by: string; sig: string }>;
   };
+  // The shape of `properties` is feature-dependent (route / proposal).
+  // Each feature declares its own typed properties via `kind`. The
+  // raw shape is intentionally loose so the exporter can serialise
+  // both kinds into one FeatureCollection.
   features: Array<{
     type: 'Feature';
-    geometry: { type: 'LineString' | 'Point'; coordinates: any };
-    properties: any;
+    geometry: { type: 'LineString' | 'Point'; coordinates: unknown };
+    properties: Record<string, unknown> & { kind: string };
   }>;
 };
+
+/**
+ * Swap coordinates from GeoJSON's [lng, lat] order to our internal
+ * [lat, lng] order. Used both at export (lat,lng → lng,lat) and at
+ * import (the reverse). Centralising the swap here makes the
+ * GeoJSON side explicit instead of relying on inline swaps that
+ * silently break if either tuple changes shape.
+ */
+type LngLat = readonly [number, number];
+type LatLngTuple = [number, number];
+
+function polylineToGeoJSON(polyline: Array<LatLngTuple>): LngLat[] {
+  return polyline.map(([lat, lng]): LngLat => [lng, lat]);
+}
+
+function polylineFromGeoJSON(coords: Array<LngLat>): LatLngTuple[] {
+  return coords.map(([lng, lat]): LatLngTuple => [lat, lng]);
+}
 
 // ============================================================
 // Export
@@ -44,7 +67,7 @@ export async function exportMyRoutesAsGeoJSON(): Promise<PortamiExport> {
     type: 'Feature',
     geometry: {
       type: 'LineString',
-      coordinates: r.polyline.map(([la, ln]) => [ln, la]),
+      coordinates: polylineToGeoJSON(r.polyline),
     },
     properties: {
       kind: 'route',
@@ -63,7 +86,8 @@ export async function exportMyRoutesAsGeoJSON(): Promise<PortamiExport> {
   const myProposals = allProposals.filter((p) => p.author === ownerPubKey);
   for (const p of myProposals) {
     const target = myRoutes.find((r) => r.id === p.routeId);
-    const center = target?.polyline[0] ?? [0, 0];
+    const firstPt = target?.polyline[0];
+    const center: LatLngTuple = firstPt ?? [0, 0];
     features.push({
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [center[1], center[0]] },
@@ -136,9 +160,10 @@ export async function importGeoJSON(
   const result: ImportResult = { imported: 0, skipped: 0, replaced: 0, merged: 0, readonly };
 
   for (const f of exp.features) {
-    const kind = f.properties?.kind;
+    const props = f.properties;
+    const kind = props['kind'];
     if (kind === 'route') {
-      const id = f.properties.routeId as string;
+      const id = props['routeId'] as string;
       const existing = await db.get('routes', id);
       const resolution = resolutions[id] ?? (existing ? 'keep' : 'replace');
 
@@ -147,10 +172,10 @@ export async function importGeoJSON(
         continue;
       }
 
-      const coords = (f.geometry as any).coordinates as Array<[number, number]>;
-      const polyline: Array<[number, number]> = coords.map(([lng, lat]) => [lat, lng]);
+      const coords = f.geometry.coordinates as Array<LngLat>;
+      const polyline = polylineFromGeoJSON(coords);
 
-      const stops = (f.properties.stops ?? []).map((s: any) => ({
+      const stops = ((props['stops'] ?? []) as Array<{ id?: string; name: string; lat: number; lng: number }>).map((s) => ({
         id: s.id ?? randomUUID(),
         name: s.name,
         lat: s.lat,
@@ -175,14 +200,14 @@ export async function importGeoJSON(
 
       await db.put('routes', {
         id,
-        name: f.properties.name,
+        name: props['name'] as string,
         polyline,
         stops,
-        createdBy: f.properties.createdBy,
-        version: f.properties.version ?? 1,
+        createdBy: (props['createdBy'] as string) ?? '',
+        version: (props['version'] as number) ?? 1,
         active: true,
-        vehicleKind: f.properties.vehicleKind,
-        createdAt: f.properties.createdAt ?? Date.now(),
+        vehicleKind: props['vehicleKind'] as Route['vehicleKind'],
+        createdAt: (props['createdAt'] as number) ?? Date.now(),
         isMine: false,
         isFavorite: false,
         cachedAt: Date.now(),
@@ -190,7 +215,7 @@ export async function importGeoJSON(
       if (existing && resolution === 'replace') result.replaced++;
       else result.imported++;
     } else if (kind === 'proposal') {
-      const id = f.properties.proposalId as string;
+      const id = props['proposalId'] as string;
       const existing = await db.get('proposals', id);
       if (existing) {
         result.skipped++;
@@ -198,18 +223,18 @@ export async function importGeoJSON(
       }
       await db.put('proposals', {
         id,
-        routeId: f.properties.routeId,
-        routeVersionAtProposal: f.properties.routeVersionAtProposal ?? 1,
-        author: f.properties.author ?? exp.portami.ownerPubKey,
-        authorAnonId: f.properties.authorAnonId ?? exp.portami.ownerAnonId,
-        title: f.properties.title,
-        rationale: f.properties.rationale,
-        diff: f.properties.diff ?? [],
-        status: f.properties.status ?? 'pending',
-        createdAt: f.properties.createdAt ?? exp.portami.exportedAt,
-        expiresAt: f.properties.expiresAt ?? exp.portami.exportedAt + 30 * 86400_000,
-        approvals: f.properties.approvals ?? 0,
-        rejections: f.properties.rejections ?? 0,
+        routeId: (props['routeId'] as string) ?? '',
+        routeVersionAtProposal: (props['routeVersionAtProposal'] as number) ?? 1,
+        author: (props['author'] as string) ?? exp.portami.ownerPubKey,
+        authorAnonId: (props['authorAnonId'] as string) ?? exp.portami.ownerAnonId,
+        title: props['title'] as string,
+        rationale: props['rationale'] as string | undefined,
+        diff: (props['diff'] as RouteDiff[]) ?? [],
+        status: (props['status'] as RouteEditProposal['status']) ?? 'pending',
+        createdAt: (props['createdAt'] as number) ?? exp.portami.exportedAt,
+        expiresAt: (props['expiresAt'] as number) ?? exp.portami.exportedAt + 30 * 86400_000,
+        approvals: (props['approvals'] as number) ?? 0,
+        rejections: (props['rejections'] as number) ?? 0,
       });
       result.imported++;
     }
@@ -218,7 +243,7 @@ export async function importGeoJSON(
   // Record import history
   await db.add('importHistory', {
     ts: Date.now(),
-    file: exp.portami.ownerAnonId || 'unknown',
+    ownerAnonId: exp.portami.ownerAnonId || 'unknown',
     imported: result.imported,
     skipped: result.skipped,
     replaced: result.replaced,
@@ -228,8 +253,14 @@ export async function importGeoJSON(
   return result;
 }
 
-function isPortamiExport(x: any): x is PortamiExport {
-  return x && x.type === 'FeatureCollection' && x.portami && Array.isArray(x.features);
+function isPortamiExport(x: unknown): x is PortamiExport {
+  if (!x || typeof x !== 'object') return false;
+  const o = x as Record<string, unknown>;
+  return (
+    o['type'] === 'FeatureCollection' &&
+    !!o['portami'] &&
+    Array.isArray(o['features'])
+  );
 }
 
 // ============================================================

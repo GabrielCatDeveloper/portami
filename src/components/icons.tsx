@@ -279,8 +279,6 @@ export const Share = (p: IconProps) => (
   </svg>
 );
 
-void Share; // avoid tooling confusion
-
 export const ShareOff = (p: IconProps) => (
   <svg {...base(p)}>
     <circle cx="6" cy="12" r="3" />

@@ -21,7 +21,6 @@ import {
   aesDecrypt,
   bytesToBase64Url,
   base64UrlToBytes,
-  randomUUID,
 } from '@/crypto';
 
 export type BackupFile = {
@@ -120,5 +119,3 @@ export async function pickBackupFile(): Promise<BackupFile | null> {
     input.click();
   });
 }
-
-void randomUUID; // kept exported for future use

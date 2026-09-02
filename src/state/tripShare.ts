@@ -5,12 +5,41 @@
 //
 // Writes (start/stop sharing, retry, ack) happen in `sync/tripShare.ts`
 // and update the DB; we re-read here to refresh the cache.
+//
+// "Rescue me" alerts (Hito 13) are NOT persisted to IndexedDB —
+// they're transient, one-shot panic broadcasts. They live in a
+// separate `rescues` map keyed by rescueId so the receiver UI can
+// render a top-of-page alert that the user can acknowledge. We
+// expire them from the store 5 minutes after the ack to avoid
+// memory growth.
 
 import { create } from 'zustand';
 import type { LatLng, OutgoingTripShare, IncomingTripShare } from '@/api/types';
+import { listIncomingShares, listActiveOutgoingShares } from '@/storage/tripSharesStorage';
 
 export type SharedTrip = IncomingTripShare & { /** legacy alias kept for UI components. */ };
 export type OutgoingShare = OutgoingTripShare;
+
+/**
+ * A "rescue me" alert received from a paired friend. Lives only
+ * in memory (not persisted) so that the receiver doesn't have to
+ * clean up after every alert.
+ */
+export type RescueAlert = {
+  rescueId: string;
+  fromAnonId: string;
+  fromDeviceId: string;
+  fromAlias?: string;
+  ts: number;
+  lat?: number;
+  lng?: number;
+  accuracyM?: number;
+  message?: string;
+  /** True after the user has dismissed the alert in the UI. */
+  acknowledged: boolean;
+};
+
+const RESCUE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 type State = {
   /** Incoming shared trips, keyed by sender anonId. Mirrors `incomingTripShares`. */
@@ -19,6 +48,8 @@ type State = {
   outgoing: OutgoingTripShare | null;
   /** Hydration flag — true after the first DB read on mount. */
   hydrated: boolean;
+  /** Incoming rescue-me alerts, keyed by rescueId. */
+  rescues: Record<string, RescueAlert>;
 
   /** Re-read both stores from IndexedDB. */
   hydrate(): Promise<void>;
@@ -28,19 +59,21 @@ type State = {
   setSharedTrip: (fromAnonId: string, s: IncomingTripShare | null) => void;
   /** Patch one cached incoming row (e.g. updated lastLocation). */
   updateSharedTrip: (fromAnonId: string, patch: Partial<IncomingTripShare>) => void;
+  /** Add a new rescue alert (incoming). The sender's name is the key. */
+  addRescue: (alert: RescueAlert) => void;
+  /** Mark a rescue alert as acknowledged (locally — does not affect peers). */
+  acknowledgeRescue: (rescueId: string) => void;
+  /** Remove a rescue alert (e.g. when it expires or is dismissed). */
+  removeRescue: (rescueId: string) => void;
 };
 
 export const useTripShareStore = create<State>((set) => ({
   sharedTrips: {},
   outgoing: null,
   hydrated: false,
+  rescues: {},
 
   async hydrate() {
-    // Lazy import to avoid a circular dep at module init
-    // (`tripSharesStorage` imports `db`, which is fine — but keeping
-    // the dynamic import here keeps the surface clean and lets us
-    // mock the storage layer in tests if needed).
-    const { listIncomingShares, listActiveOutgoingShares } = await import('@/storage/tripSharesStorage');
     const [incoming, activeOutgoing] = await Promise.all([
       listIncomingShares(),
       listActiveOutgoingShares(),
@@ -72,31 +105,79 @@ export const useTripShareStore = create<State>((set) => ({
         sharedTrips: { ...state.sharedTrips, [fromAnonId]: { ...cur, ...patch } },
       };
     }),
+
+  addRescue: (alert) =>
+    set((state) => ({ rescues: { ...state.rescues, [alert.rescueId]: alert } })),
+
+  acknowledgeRescue: (rescueId) =>
+    set((state) => {
+      const cur = state.rescues[rescueId];
+      if (!cur) return state;
+      return { rescues: { ...state.rescues, [rescueId]: { ...cur, acknowledged: true } } };
+    }),
+
+  removeRescue: (rescueId) =>
+    set((state) => {
+      if (!(rescueId in state.rescues)) return state;
+      const next = { ...state.rescues };
+      delete next[rescueId];
+      return { rescues: next };
+    }),
 }));
+
+/**
+ * Sweep expired rescue alerts. Called by a setInterval in the
+ * Following page (or anywhere that mounts the rescue banner).
+ * Exported for testing.
+ */
+export function pruneExpiredRescues(
+  rescues: Record<string, RescueAlert>,
+  now: number = Date.now(),
+): Record<string, RescueAlert> {
+  const cutoff = now - RESCUE_TTL_MS;
+  let changed = false;
+  const next: Record<string, RescueAlert> = {};
+  for (const [id, r] of Object.entries(rescues)) {
+    if (r.ts >= cutoff) {
+      next[id] = r;
+    } else {
+      changed = true;
+    }
+  }
+  return changed ? next : rescues;
+}
+
+/** Visible for tests. */
+export { RESCUE_TTL_MS };
 
 // ============================================================
 // Pure helpers (testable, no React state)
 // ============================================================
 
 /**
- * Compute a human-readable status string for one recipient in an
- * outgoing share. The UI uses this to render chips/labels.
+ * Visual treatment (color variant + icon) for one recipient status.
+ * The label is intentionally NOT included here — the caller picks
+ * the i18n key and renders `t(key)` so that the chip is localised
+ * alongside the rest of the page.
  */
+export type RecipientChipVariant = 'success' | 'warning' | 'danger' | 'muted';
+
+export const RECIPIENT_CHIP_KEYS = {
+  delivered: { variant: 'success', icon: '✓', i18nKey: 'recipient.delivered' },
+  pending: { variant: 'warning', icon: '⟳', i18nKey: 'recipient.pending' },
+  failed: { variant: 'danger', icon: '✗', i18nKey: 'recipient.failed' },
+  unreachable: { variant: 'muted', icon: '⚠', i18nKey: 'recipient.unreachable' },
+} as const satisfies Record<
+  OutgoingTripShare['recipients'][string]['status'],
+  { variant: RecipientChipVariant; icon: string; i18nKey: string }
+>;
+
 export function recipientChip(status: OutgoingTripShare['recipients'][string]['status']): {
-  label: string;
-  variant: 'success' | 'warning' | 'danger' | 'muted';
+  variant: RecipientChipVariant;
   icon: string;
+  i18nKey: string;
 } {
-  switch (status) {
-    case 'delivered':
-      return { label: 'entregado', variant: 'success', icon: '✓' };
-    case 'pending':
-      return { label: 'reintentando…', variant: 'warning', icon: '⟳' };
-    case 'failed':
-      return { label: 'fallido', variant: 'danger', icon: '✗' };
-    case 'unreachable':
-      return { label: 'sin conexión', variant: 'muted', icon: '⚠' };
-  }
+  return RECIPIENT_CHIP_KEYS[status];
 }
 
 // LatLng re-export so other modules don't need a second type import.

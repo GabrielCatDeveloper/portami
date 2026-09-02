@@ -42,8 +42,11 @@ export function pointToSegmentMeters(p: LatLng, a: LatLng, b: LatLng): number {
 export function distanceToPolyline(p: LatLng, polyline: Array<[number, number]>): number {
   let min = Infinity;
   for (let i = 1; i < polyline.length; i++) {
-    const a = { lat: polyline[i - 1][0], lng: polyline[i - 1][1] };
-    const b = { lat: polyline[i][0], lng: polyline[i][1] };
+    const aPt = polyline[i - 1];
+    const bPt = polyline[i];
+    if (!aPt || !bPt) continue;
+    const a = { lat: aPt[0], lng: aPt[1] };
+    const b = { lat: bPt[0], lng: bPt[1] };
     const d = pointToSegmentMeters(p, a, b);
     if (d < min) min = d;
   }
@@ -57,7 +60,9 @@ export function nearestPointOnPolyline(
 ): { idx: number; distance: number } {
   let best = { idx: 0, distance: Infinity };
   for (let i = 0; i < polyline.length; i++) {
-    const d = haversine(p, { lat: polyline[i][0], lng: polyline[i][1] });
+    const pt = polyline[i];
+    if (!pt) continue;
+    const d = haversine(p, { lat: pt[0], lng: pt[1] });
     if (d < best.distance) best = { idx: i, distance: d };
   }
   return best;
@@ -67,9 +72,12 @@ export function nearestPointOnPolyline(
 export function polylineLength(polyline: Array<[number, number]>): number {
   let total = 0;
   for (let i = 1; i < polyline.length; i++) {
+    const aPt = polyline[i - 1];
+    const bPt = polyline[i];
+    if (!aPt || !bPt) continue;
     total += haversine(
-      { lat: polyline[i - 1][0], lng: polyline[i - 1][1] },
-      { lat: polyline[i][0], lng: polyline[i][1] },
+      { lat: aPt[0], lng: aPt[1] },
+      { lat: bPt[0], lng: bPt[1] },
     );
   }
   return total;

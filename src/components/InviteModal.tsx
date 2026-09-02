@@ -22,7 +22,7 @@ import {
   telegramShareUrl,
   smsShareUrl,
 } from '@/sync/invite';
-import { X, Copy, Share as ShareIcon, ArrowUpRight } from '@/components/icons';
+import { X, Copy, Share as ShareIcon, ArrowUpRight, Info } from '@/components/icons';
 
 export type InviteModalProps = {
   /** The paired friend's deviceId (just for record-keeping / logs). */
@@ -165,6 +165,14 @@ export function InviteModal({
 
         {state.kind === 'ready' && (
           <>
+            <div className="banner banner-info mb-3 text-sm" role="status">
+              <Info size={16} />
+              <span>
+                {t('trip.privateHint')}
+                {' '}
+                <strong>{t('trip.peerToPeer')}</strong>: {t('trip.peerToPeerLong')}
+              </span>
+            </div>
             <label className="field-label" htmlFor="invite-textarea">
               {t('invite.shareVia')}
             </label>

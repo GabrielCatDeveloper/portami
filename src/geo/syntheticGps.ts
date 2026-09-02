@@ -40,7 +40,6 @@ type Listener = (pos: GeolocationPosition) => void;
 
 export class SyntheticGpsSource {
   private watchId = 0;
-  private activeId: number | null = null;
   private timer: number | null = null;
   private pos: { lat: number; lng: number };
   private bearing: number; // degrees, 0 = north, 90 = east

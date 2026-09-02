@@ -16,7 +16,7 @@
 // all clients to drop their old runtime caches.
 // ============================================================
 
-import { precacheAndRoute } from 'workbox-precaching';
+import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
 import { registerRoute } from 'workbox-routing';
 import { CacheFirst, NetworkFirst } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
@@ -30,10 +30,39 @@ declare const self: ServiceWorkerGlobalScope;
 // prefix. Previously the app called /routes/nearby, /incidents etc.
 // while the real server (and MSW) registered them at /api/routes/nearby,
 // /api/incidents, so every list call returned 404.
-const CACHE_VERSION = 27;
+const CACHE_VERSION = 28;
 
 self.skipWaiting();
 clientsClaim();
+
+// workbox-precaching injects a precache manifest with revision hashes.
+// `cleanupOutdatedCaches` deletes entries whose revision no longer
+// matches the current build — this prevents stale app-shell bundles
+// from being served after a deployment, especially on devices that
+// skip the upgrade flow (e.g. iOS PWAs with no network for hours).
+cleanupOutdatedCaches();
+
+// Belt-and-braces: also wipe any leftover runtime caches that follow
+// the old `portami-*-v<old>` naming pattern. `ExpirationPlugin` handles
+// TTL-based eviction, but explicit deletion here protects against the
+// case where we bump CACHE_VERSION and the user comes back months
+// later — the old `portami-tiles-v27` cache would otherwise linger
+// in storage until the 7-day TTL elapses.
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    (async () => {
+      const keepTiles = `portami-tiles-v${CACHE_VERSION}`;
+      const keepApi = `portami-api-v${CACHE_VERSION}`;
+      const keys = await caches.keys();
+      await Promise.all(
+        keys
+          .filter((k) => (k.startsWith('portami-tiles-v') || k.startsWith('portami-api-v')) && k !== keepTiles && k !== keepApi)
+          .map((k) => caches.delete(k)),
+      );
+      await self.clients.claim();
+    })(),
+  );
+});
 
 // Base path resolved at runtime — works on GitHub Pages (/portami/) or domain root (/)
 const BASE = new URL('./', self.registration?.scope ?? self.location.href).href;
@@ -77,26 +106,40 @@ registerRoute(
 // ============================================================
 // Notifications — triggered from client via postMessage
 // ============================================================
+type NotifyPayloadFromClient = {
+  title?: string;
+  body?: string;
+  tag?: string;
+  url?: string;
+  requireInteraction?: boolean;
+  actions?: Array<{ action: string; title: string }>;
+};
+
+type ClientMessage =
+  | { type: 'SHOW_NOTIFICATION'; payload?: NotifyPayloadFromClient }
+  | { type: 'NAVIGATE'; payload?: { url?: string } };
+
 self.addEventListener('message', (event: ExtendableMessageEvent) => {
-  const data = event.data as { type: string; payload?: any };
+  const data = event.data as ClientMessage | undefined;
   if (!data || !data.type) return;
 
   if (data.type === 'SHOW_NOTIFICATION') {
     const { title, body, tag, url, requireInteraction, actions } =
       data.payload ?? {};
-    void self.registration.showNotification(title ?? 'portami', {
+    // `actions` and `vibrate` are not in the standard `NotificationOptions`
+    // type but are widely supported by browsers. Cast through `unknown`
+    // to satisfy TS without losing the data.
+    const options = {
       body: body ?? '',
       tag: tag ?? 'portami',
       icon: iconUrl(192),
       badge: iconUrl(192),
       data: { url },
       requireInteraction: !!requireInteraction,
-      // Action buttons — at most 2 visible (browser limit). The
-      // receiver side defines "view" and "dismiss"; the SW handles
-      // them in `notificationclick`.
       actions: Array.isArray(actions) ? actions.slice(0, 2) : undefined,
-      ...({ vibrate: [120, 60, 120] } as any),
-    });
+      vibrate: [120, 60, 120],
+    } as unknown as NotificationOptions & { actions?: unknown; vibrate?: number[] };
+    void self.registration.showNotification(title ?? 'portami', options);
   }
 });
 

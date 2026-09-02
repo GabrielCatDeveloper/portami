@@ -64,16 +64,24 @@ export class Peer {
   }
 
   async acceptAnswer(sdp: string): Promise<void> {
-    const parsed = JSON.parse(sdp);
-    await this.pc.setRemoteDescription(parsed.sdp);
+    const parsed = JSON.parse(sdp) as RTCSessionDescriptionInit;
+    // setRemoteDescription requires an RTCSessionDescriptionInit
+    // ({type, sdp}), not a bare sdp string.
+    if (!parsed || typeof parsed.sdp !== 'string' || typeof parsed.type !== 'string') {
+      throw new Error('acceptAnswer: malformed answer SDP');
+    }
+    await this.pc.setRemoteDescription(parsed);
   }
 
   async createAnswer(offerSdp: string): Promise<string> {
-    const parsed = JSON.parse(offerSdp);
-    await this.pc.setRemoteDescription(parsed.sdp);
+    const parsed = JSON.parse(offerSdp) as RTCSessionDescriptionInit;
+    if (!parsed || typeof parsed.sdp !== 'string' || parsed.type !== 'offer') {
+      throw new Error('createAnswer: malformed offer SDP');
+    }
+    await this.pc.setRemoteDescription(parsed);
     const answer = await this.pc.createAnswer();
     await this.pc.setLocalDescription(answer);
-    return JSON.stringify({ type: 'answer', sdp: answer });
+    return JSON.stringify({ type: 'answer', sdp: answer.sdp });
   }
 
   send(msg: SyncMessage) {

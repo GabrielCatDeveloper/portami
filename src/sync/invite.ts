@@ -205,13 +205,17 @@ export function defaultInviteText(args: {
   language?: 'es' | 'ca' | 'en';
 }): string {
   const lang = args.language ?? 'es';
+  // The link opens portami and the two devices pair P2P via WebRTC.
+  // We make the "no server" promise explicit so the recipient
+  // knows their friend's location won't be relayed through any
+  // third party — including ours.
   if (lang === 'en') {
-    return `Hey, open portami and I'll share my trip with you live: ${args.inviteUrl}`;
+    return `Open portami and I'll share my trip with you live, directly device-to-device (no server in between): ${args.inviteUrl}`;
   }
   if (lang === 'ca') {
-    return `Ep, obre'm portami i comparteixo el meu viatge en directe: ${args.inviteUrl}`;
+    return `Obre'm portami i comparteixo el meu viatge en directe, directe entre dispositius (sense servidor pel mig): ${args.inviteUrl}`;
   }
-  return `Ey, ábreme portami y te comparto mi viaje en directo: ${args.inviteUrl}`;
+  return `Ábreme portami y te comparto mi viaje en directo, directo entre dispositivos (sin servidor por el medio): ${args.inviteUrl}`;
 }
 
 /**

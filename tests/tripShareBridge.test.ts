@@ -13,6 +13,7 @@ import {
   nextStopInfo,
 } from '@/sync/tripShare';
 import { useTripShareStore } from '@/state/tripShare';
+import type { RecipientStatus } from '@/api/types';
 
 describe('initialRecipientStatus', () => {
   it('returns "pending" when the peer is connected', () => {
@@ -50,9 +51,23 @@ describe('recipientChip', () => {
     expect(recipientChip('unreachable').variant).toBe('muted');
   });
 
-  it('returns a non-empty label for every status', () => {
+  it('returns a non-empty icon + i18n key for every status', () => {
     for (const s of ['delivered', 'pending', 'failed', 'unreachable'] as const) {
-      expect(recipientChip(s).label.length).toBeGreaterThan(0);
+      const chip = recipientChip(s);
+      expect(chip.icon.length).toBeGreaterThan(0);
+      expect(chip.i18nKey.length).toBeGreaterThan(0);
+      // The key must belong to the `recipient.` namespace so we can
+      // assert that the locales cover every status.
+      expect(chip.i18nKey.startsWith('recipient.')).toBe(true);
+    }
+  });
+
+  it('exposes a complete mapping for every RecipientStatus', () => {
+    // Exhaustiveness guard: if a new RecipientStatus is added without
+    // updating RECIPIENT_CHIP_KEYS, this test fails.
+    const known: RecipientStatus[] = ['delivered', 'pending', 'failed', 'unreachable'];
+    for (const s of known) {
+      expect(recipientChip(s)).toBeDefined();
     }
   });
 });

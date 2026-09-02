@@ -5,7 +5,7 @@
 // ============================================================
 
 import type { Route, GPSSample } from '@/api/types';
-import { distanceToPolyline, haversine, nearestPointOnPolyline } from '@/geo/distance';
+import { haversine, nearestPointOnPolyline } from '@/geo/distance';
 
 export type StopEta = {
   stopId: string;
@@ -37,8 +37,17 @@ export function estimateStopEtas(route: Route, pos: GPSSample): StopEta[] {
   // point; good enough for an estimation, with the speed carrying the rest.
   const speed = (pos.speed ?? DEFAULT_SPEED_MS);
   return route.stops.map((stop) => {
+      const projPt = route.polyline[proj.idx];
+      if (!projPt) {
+        return {
+          stopId: stop.id,
+          stopName: stop.name,
+          distanceM: Infinity,
+          etaMs: Infinity,
+        };
+      }
       const distanceM = haversine(
-        { lat: route.polyline[proj.idx][0], lng: route.polyline[proj.idx][1] },
+        { lat: projPt[0], lng: projPt[1] },
         { lat: stop.lat, lng: stop.lng },
       );
       const etaMs = distanceM / Math.max(0.5, speed) * 1000;
@@ -63,5 +72,3 @@ export function formatEta(ms: number): string {
   const m = min % 60;
   return `${h} h ${m} min`;
 }
-
-void distanceToPolyline;

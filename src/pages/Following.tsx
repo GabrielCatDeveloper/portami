@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useTripShareStore } from '@/state/tripShare';
 import { LeafletMap } from '@/components/LeafletMap';
-import { ArrowLeft, Bus, Clock, Share, Trash, Navigation, X, AlertTriangle } from '@/components/icons';
+import { ArrowLeft, Bus, Clock, Share, Navigation, X } from '@/components/icons';
 import { useNavigate } from 'react-router-dom';
-import { formatDistance } from '@/geo/distance';
 import type { SharedTrip } from '@/state/tripShare';
 
 export default function FollowingPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const sharedTrips = useTripShareStore((s) => s.sharedTrips);
   const setSharedTrip = useTripShareStore((s) => s.setSharedTrip);
@@ -22,34 +23,34 @@ export default function FollowingPage() {
     void hydrate();
   }, [hydrate]);
 
+  // Auto-select: keep `selected` pointing at the first active trip
+  // unless the user has explicitly chosen one. We depend only on
+  // the active-trips key list (anonIds + endedAt) so this only
+  // re-runs when the *set* of trips actually changes — not when a
+  // single trip updates its lastLocation every minute.
+  const activeKeys = activeTrips.map((t) => t.fromAnonId).join(',');
   useEffect(() => {
-    if (!selected && activeTrips[0]) setSelected(activeTrips[0]);
-    if (selected && activeTrips.find((t) => t.fromAnonId === selected.fromAnonId)) {
-      setSelected(activeTrips.find((t) => t.fromAnonId === selected.fromAnonId)!);
+    if (!selected || !activeTrips.find((t) => t.fromAnonId === selected.fromAnonId)) {
+      setSelected(activeTrips[0] ?? null);
     }
-    // We only want to re-evaluate the auto-select when the trip list
-    // changes; tracking `activeTrips`/`selected` directly would cause
-    // infinite re-renders because we update `selected` inside.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sharedTrips]);
+  }, [activeKeys]);
 
   if (activeTrips.length === 0 && endedTrips.length === 0) {
     return (
       <div className="page">
         <header className="page-header">
-          <button type="button" className="btn-icon btn" onClick={() => navigate(-1)} aria-label="Volver">
+          <button type="button" className="btn-icon btn" onClick={() => navigate(-1)} aria-label={t('common.back')}>
             <ArrowLeft />
           </button>
-          <h1 style={{ flex: 1 }}>Siguiendo</h1>
+          <h1 style={{ flex: 1 }}>{t('following.title')}</h1>
         </header>
         <div className="empty">
           <div className="empty-illustration">
             <Share size={40} />
           </div>
-          <h3>Nadie está compartiendo viaje</h3>
-          <p className="text-sm text-muted">
-            Cuando alguien emparejado contigo empiece un viaje, aparecerá aquí.
-          </p>
+          <h3>{t('following.emptyTitle')}</h3>
+          <p className="text-sm text-muted">{t('following.emptyText')}</p>
         </div>
       </div>
     );
@@ -58,14 +59,14 @@ export default function FollowingPage() {
   return (
     <div className="page">
       <header className="page-header">
-        <button type="button" className="btn-icon btn" onClick={() => navigate(-1)} aria-label="Volver">
+        <button type="button" className="btn-icon btn" onClick={() => navigate(-1)} aria-label={t('common.back')}>
           <ArrowLeft />
         </button>
-        <h1 style={{ flex: 1 }}>Siguiendo</h1>
+        <h1 style={{ flex: 1 }}>{t('following.title')}</h1>
         {activeTrips.length > 0 && (
           <span
             className="chip active"
-            aria-label={`${activeTrips.length} viaje${activeTrips.length === 1 ? '' : 's'} en directo`}
+            aria-label={t('following.active', { n: activeTrips.length, count: activeTrips.length })}
           >
             {activeTrips.length}
           </span>
@@ -101,10 +102,10 @@ export default function FollowingPage() {
                 <div style={{ fontWeight: 700 }}>
                   {selected.fromAlias ?? `#${selected.fromAnonId.slice(0, 6)}`}
                   {' · '}
-                  {selected.routeName ?? 'Sin ruta'}
+                  {selected.routeName ?? t('following.noRoute')}
                 </div>
                 <div className="text-xs text-muted">
-                  Última actualización: hace {timeAgo(selected.lastLocation.ts)}
+                  {t('following.lastUpdate', { time: timeAgo(selected.lastLocation.ts) })}
                 </div>
               </div>
             </div>
@@ -112,14 +113,16 @@ export default function FollowingPage() {
               <div className="row gap-2 mt-2" style={{ alignItems: 'center' }}>
                 <Clock size={16} className="text-muted" />
                 <div className="text-sm">
-                  Llega a <strong>{selected.nextStopName}</strong> en{' '}
-                  <strong>{Math.round(selected.etaNextStopS / 60)} min</strong>
+                  {t('following.endsIn', {
+                    stop: selected.nextStopName,
+                    min: Math.round(selected.etaNextStopS / 60),
+                  })}
                 </div>
               </div>
             )}
             {selected.plannedRoute && (
               <div className="mt-2">
-                <div className="text-xs text-muted">Ruta planeada</div>
+                <div className="text-xs text-muted">{t('following.plannedRoute')}</div>
                 <ol style={{ listStyle: 'none', padding: 0, margin: '4px 0 0', display: 'flex', flexDirection: 'column', gap: 4, fontSize: 'var(--fs-sm)' }}>
                   {selected.plannedRoute.steps.map((s, i) => (
                     <li key={i}>
@@ -135,26 +138,29 @@ export default function FollowingPage() {
 
       {endedTrips.length > 0 && (
         <>
-          <h3 className="mb-2 text-muted text-sm">Viajes terminados</h3>
+          <h3 className="mb-2 text-muted text-sm">{t('following.endedTitle')}</h3>
           <div className="list">
-            {endedTrips.map((t) => (
-              <div key={t.fromAnonId} className="list-item">
+            {endedTrips.map((trip) => (
+              <div key={trip.fromAnonId} className="list-item">
                 <div className="list-item-icon">
                   <Bus size={20} />
                 </div>
                 <div className="list-item-body">
                   <div className="list-item-title">
-                    {t.fromAlias ?? `#${t.fromAnonId.slice(0, 6)}`} · {t.routeName ?? 'Sin ruta'}
+                    {trip.fromAlias ?? `#${trip.fromAnonId.slice(0, 6)}`} · {trip.routeName ?? t('following.noRoute')}
                   </div>
                   <div className="list-item-sub">
-                    terminado hace {t.endedAt ? timeAgo(t.endedAt) : '?'} ({t.endReason})
+                    {t('following.endedTimeAgo', {
+                      time: trip.endedAt ? timeAgo(trip.endedAt) : '?',
+                      reason: trip.endReason,
+                    })}
                   </div>
                 </div>
                 <button
                   type="button"
                   className="btn btn-ghost btn-sm"
-                  onClick={() => setSharedTrip(t.fromAnonId, null)}
-                  aria-label="Quitar"
+                  onClick={() => setSharedTrip(trip.fromAnonId, null)}
+                  aria-label={t('following.remove')}
                 >
                   <X size={14} />
                 </button>
@@ -174,7 +180,3 @@ function timeAgo(ts: number): string {
   if (sec < 86400) return `${Math.floor(sec / 3600)} h`;
   return `${Math.floor(sec / 86400)} d`;
 }
-
-void formatDistance;
-void AlertTriangle;
-void Trash;

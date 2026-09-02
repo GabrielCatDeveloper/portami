@@ -1,6 +1,7 @@
 import { http, HttpResponse, delay } from 'msw';
 import { activeBuses, seedRoutes } from './data/seed';
 import type { Route, GPSSample } from '@/api/types';
+import { distanceToPolyline } from '@/geo/distance';
 
 type ActiveTrip = {
   id: string;
@@ -25,7 +26,6 @@ export const handlers = [
     const lat = parseFloat(url.searchParams.get('lat') ?? '40.42');
     const lng = parseFloat(url.searchParams.get('lng') ?? '-3.69');
     // Use real proximity to the polyline, not just the midpoint
-    const { distanceToPolyline } = await import('@/geo/distance');
     const nearby = seedRoutes
       .map((r) => ({ route: r, distM: distanceToPolyline({ lat, lng }, r.polyline) }))
       .filter(({ distM }) => distM < 5000) // 5 km

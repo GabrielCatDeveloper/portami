@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useIdentityStore } from '@/state/identity';
@@ -6,18 +6,41 @@ import { Home as HomeIcon, Map, Record as RecordIcon, Settings as SettingsIcon }
 import { TripBanner } from '@/components/TripBanner';
 import { useStorageJanitor } from '@/storage/useStorageJanitor';
 
+// Pages that don't pull in LeafletMap are loaded eagerly so the
+// initial bundle boots the Home → Settings paths immediately.
+// Pages that mount a LeafletMap (Explore / Record / Trip /
+// RouteDetail / Following / Connect / ConnectBack) are split out
+// into their own chunks; the shared `leaflet` vendor chunk is then
+// only fetched when the user actually navigates to a map view.
 import HomePage from '@/pages/Home';
-import ExplorePage from '@/pages/Explore';
-import RouteDetailPage from '@/pages/RouteDetail';
-import TripPage from '@/pages/Trip';
-import RecordPage from '@/pages/Record';
 import SettingsPage from '@/pages/Settings';
 import SyncPage from '@/pages/Sync';
-import BoardPage from '@/pages/Board';
 import JourneyPage from '@/pages/Journey';
-import FollowingPage from '@/pages/Following';
-import ConnectPage from '@/pages/Connect';
-import ConnectBackPage from '@/pages/ConnectBack';
+
+const BoardPage = lazy(() => import('@/pages/Board'));
+const ExplorePage = lazy(() => import('@/pages/Explore'));
+const RouteDetailPage = lazy(() => import('@/pages/RouteDetail'));
+const TripPage = lazy(() => import('@/pages/Trip'));
+const RecordPage = lazy(() => import('@/pages/Record'));
+const FollowingPage = lazy(() => import('@/pages/Following'));
+const ConnectPage = lazy(() => import('@/pages/Connect'));
+const ConnectBackPage = lazy(() => import('@/pages/ConnectBack'));
+
+/**
+ * Tiny placeholder shown while a lazy chunk loads. We deliberately
+ * avoid Leaflet's heavy CSS / icon fonts (which is what the lazy
+ * chunk pulls in) by using the same skeleton utility as the boot
+ * state — keeps the visual contract simple.
+ */
+function PageFallback() {
+  return (
+    <div className="page" style={{ paddingTop: 60, textAlign: 'center' }}>
+      <div className="skeleton" style={{ height: 32, width: '40%', margin: '0 auto 12px' }} />
+      <div className="skeleton" style={{ height: 16, width: '60%', margin: '0 auto 12px' }} />
+      <div className="skeleton" style={{ height: 16, width: '30%', margin: '0 auto' }} />
+    </div>
+  );
+}
 
 export default function App() {
   const { t } = useTranslation();
@@ -80,24 +103,26 @@ export default function App() {
     <div className="app">
       <TripBanner onEndClick={() => navigate('/trip')} />
       <main className="app-main">
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/explore" element={<ExplorePage />} />
-          <Route path="/routes/:id" element={<RouteDetailPage />} />
-          <Route path="/trip" element={<TripPage />} />
-          <Route path="/record" element={<RecordPage />} />
-          {/* Board: smart "I just boarded" flow — GPS → route suggestions. */}
-          <Route path="/board" element={<BoardPage />} />
-          <Route path="/journey" element={<JourneyPage />} />
-          <Route path="/following" element={<FollowingPage />} />
-          {/* Sync is reachable from Settings (less-used action, no need
-              for a permanent slot in the bottom nav). */}
-          <Route path="/sync" element={<SyncPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          {/* Invite deeplink routes (Hito 7 — Fase 6). */}
-          <Route path="/connect" element={<ConnectPage />} />
-          <Route path="/connect-back" element={<ConnectBackPage />} />
-        </Routes>
+        <Suspense fallback={<PageFallback />}>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/explore" element={<ExplorePage />} />
+            <Route path="/routes/:id" element={<RouteDetailPage />} />
+            <Route path="/trip" element={<TripPage />} />
+            <Route path="/record" element={<RecordPage />} />
+            {/* Board: smart "I just boarded" flow — GPS → route suggestions. */}
+            <Route path="/board" element={<BoardPage />} />
+            <Route path="/journey" element={<JourneyPage />} />
+            <Route path="/following" element={<FollowingPage />} />
+            {/* Sync is reachable from Settings (less-used action, no need
+                for a permanent slot in the bottom nav). */}
+            <Route path="/sync" element={<SyncPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            {/* Invite deeplink routes (Hito 7 — Fase 6). */}
+            <Route path="/connect" element={<ConnectPage />} />
+            <Route path="/connect-back" element={<ConnectBackPage />} />
+          </Routes>
+        </Suspense>
       </main>
 
       <nav className="bottom-nav" aria-label="primary">
@@ -110,7 +135,7 @@ export default function App() {
           <span>{t('nav.explore')}</span>
         </NavLink>
         <NavLink to="/record" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
-          <RecordIcon size={22} />
+          <RecordIcon size={20} />
           <span>{t('nav.record')}</span>
         </NavLink>
         <NavLink to="/settings" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>

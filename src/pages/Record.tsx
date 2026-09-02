@@ -40,6 +40,7 @@ export default function RecordPage() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [activeDays, setActiveDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [intervalStart, setIntervalStart] = useState('08:00');
+  const [saveResult, setSaveResult] = useState<'success' | 'offline' | null>(null);
   const [intervalEnd, setIntervalEnd] = useState('20:00');
   const recordingIdRef = useRef<string | null>(null);
   const listenerCleanupRef = useRef<(() => void) | null>(null);
@@ -98,7 +99,8 @@ export default function RecordPage() {
     const out: GPSSample[] = [];
     for (let i = trimStart; i <= trimEnd; i++) {
       if (pendingCuts.some(([a, b]) => i >= a && i <= b)) continue;
-      out.push(samples[i]);
+      const s = samples[i];
+      if (s) out.push(s);
     }
     return out;
   })();
@@ -109,14 +111,17 @@ export default function RecordPage() {
     let clusterMinSpeed = Infinity;
     for (let i = 1; i < effectiveSamples.length; i++) {
       const s = effectiveSamples[i];
+      if (!s) continue;
       const speed = s.speed ?? 0;
       if (speed < 1) {
         clusterMinSpeed = Math.min(clusterMinSpeed, speed);
         if (i - clusterStart > 6) {
-          const mid = effectiveSamples[Math.floor((clusterStart + i) / 2)];
+          const midIdx = Math.floor((clusterStart + i) / 2);
+          const mid = effectiveSamples[midIdx];
+          if (!mid) continue;
           stops.push({
             id: `stop-${stops.length}`,
-            idx: Math.floor((clusterStart + i) / 2),
+            idx: midIdx,
             name: `Parada ${stops.length + 1}`,
             lat: mid.lat,
             lng: mid.lng,
@@ -187,12 +192,13 @@ export default function RecordPage() {
 
     try {
       const idStore = useIdentityStore.getState();
-      route.createdBy = idStore.identity!.pubKey;
+      if (!idStore.identity) throw new Error('Identity unavailable');
+      route.createdBy = idStore.identity.pubKey;
       await apiFetch('/routes', { method: 'POST', body: route, signed: true });
-      alert(t('record.saveSuccess'));
+      setSaveResult('success');
       navigate(`/routes/${route.id}`);
     } catch {
-      alert(t('record.saveOffline'));
+      setSaveResult('offline');
       navigate('/');
     } finally {
       setPhase('idle');
@@ -238,6 +244,14 @@ export default function RecordPage() {
           {error && (
             <div className="banner banner-danger mt-3" style={{ textAlign: 'left', maxWidth: 360, margin: '12px auto 0' }}>
               {error}
+            </div>
+          )}
+          {saveResult && (
+            <div
+              className={`banner ${saveResult === 'success' ? 'banner-success' : 'banner-warning'} mt-3`}
+              style={{ textAlign: 'left', maxWidth: 360, margin: '12px auto 0' }}
+            >
+              {saveResult === 'success' ? t('record.saveSuccess') : t('record.saveOffline')}
             </div>
           )}
         </div>
@@ -329,13 +343,22 @@ export default function RecordPage() {
             },
           ]}
           showStops
-          userPosition={effectiveSamples.length ? { lat: effectiveSamples[effectiveSamples.length - 1].lat, lng: effectiveSamples[effectiveSamples.length - 1].lng } : null}
+          userPosition={
+            effectiveSamples.length
+              ? (() => {
+                  const last = effectiveSamples[effectiveSamples.length - 1];
+                  return last ? { lat: last.lat, lng: last.lng } : null;
+                })()
+              : null
+          }
           onMapClick={(p) => {
             // Tap to cut at nearest sample
             let bestIdx = 0;
             let bestD = Infinity;
             for (let i = 0; i < effectiveSamples.length; i++) {
-              const d = (effectiveSamples[i].lat - p.lat) ** 2 + (effectiveSamples[i].lng - p.lng) ** 2;
+              const s = effectiveSamples[i];
+              if (!s) continue;
+              const d = (s.lat - p.lat) ** 2 + (s.lng - p.lng) ** 2;
               if (d < bestD) { bestD = d; bestIdx = i; }
             }
             cutAt(bestIdx);

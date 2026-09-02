@@ -92,9 +92,9 @@ describe('notify — foreground skip', () => {
     });
     await notify({ title: 'Hola', body: 'mundo' });
     expect(state.postedMessages).toHaveLength(1);
-    expect(state.postedMessages[0].type).toBe('SHOW_NOTIFICATION');
-    const payload = state.postedMessages[0].payload as { title: string; body: string };
-    expect(payload.title).toBe('Hola');
+    expect(state.postedMessages[0]?.type).toBe('SHOW_NOTIFICATION');
+    const payload = state.postedMessages[0]?.payload as { title: string; body: string };
+    expect(payload?.title).toBe('Hola');
     expect(payload.body).toBe('mundo');
   });
 });
@@ -154,8 +154,8 @@ describe('notify — payload passthrough', () => {
       tag: 'trip-share-start-abc',
     });
     expect(state.postedMessages).toHaveLength(1);
-    const payload = state.postedMessages[0].payload as Record<string, unknown>;
-    expect(payload.url).toBe('/following');
+    const payload = state.postedMessages[0]?.payload as Record<string, unknown>;
+    expect(payload?.url).toBe('/following');
     expect(payload.requireInteraction).toBe(true);
     expect(payload.actions).toEqual([
       { action: 'view', title: 'Ver' },
@@ -178,8 +178,8 @@ describe('notify — fallback path', () => {
     expect(state.postedMessages).toHaveLength(0);
     // But the in-page constructor was used.
     expect(state.showCalls).toHaveLength(1);
-    expect(state.showCalls[0].title).toBe('Hola');
-    expect(state.showCalls[0].options.body).toBe('mundo');
+    expect(state.showCalls[0]?.title).toBe('Hola');
+    expect(state.showCalls[0]?.options.body).toBe('mundo');
   });
 });
 

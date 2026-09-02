@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiFetch, ServerOfflineError } from '@/api/client';
 import { fetchAllActiveBuses, type ActiveBusOnRoute } from '@/api/activeBuses';
@@ -7,6 +7,7 @@ import type { Route, Incident, VehicleKind } from '@/api/types';
 import { LeafletMap, vehicleEmoji } from '@/components/LeafletMap';
 import { geoWatcher } from '@/geo/watcher';
 import { isRouteActiveAt, isIncidentVisible } from '@/geo/schedule';
+import { useInterval } from '@/hooks/useInterval';
 
 type VehicleFilter = 'all' | VehicleKind;
 
@@ -41,42 +42,42 @@ export default function ExplorePage() {
 
   useEffect(() => {
     let mounted = true;
+    let off: (() => void) | null = null;
     void geoWatcher.checkPermission().then((p) => {
-      if (p === 'granted') {
-        geoWatcher.start();
-        const off = geoWatcher.on((s) => {
-          if (!mounted) return;
-          setUserPos({ lat: s.lat, lng: s.lng });
-          setCenter({ lat: s.lat, lng: s.lng });
-        });
-        return () => off();
-      }
+      if (!mounted) return;
+      if (p !== 'granted') return;
+      geoWatcher.start();
+      off = geoWatcher.on((s) => {
+        if (!mounted) return;
+        setUserPos({ lat: s.lat, lng: s.lng });
+        setCenter({ lat: s.lat, lng: s.lng });
+      });
     });
     return () => {
       mounted = false;
+      off?.();
       geoWatcher.stop();
     };
   }, []);
 
-  // Poll active buses + incidents every 15s
+  // Poll active buses + incidents every 15s. The `cancelled` ref
+  // guards the in-flight fetch callbacks so a slow network
+  // doesn't setState on an unmounted component.
+  const cancelled = useRef(false);
   useEffect(() => {
-    let cancelled = false;
-    const tick = () => {
-      if (cancelled) return;
-      fetchAllActiveBuses()
-        .then((b) => !cancelled && setActiveBuses(b))
-        .catch(() => {});
-      listIncidents()
-        .then((i) => !cancelled && setIncidents(i))
-        .catch(() => {});
-    };
-    tick();
-    const handle = window.setInterval(tick, 15_000);
+    cancelled.current = false;
     return () => {
-      cancelled = true;
-      window.clearInterval(handle);
+      cancelled.current = true;
     };
   }, []);
+  useInterval(() => {
+    fetchAllActiveBuses()
+      .then((b) => !cancelled.current && setActiveBuses(b))
+      .catch(() => {});
+    listIncidents()
+      .then((i) => !cancelled.current && setIncidents(i))
+      .catch(() => {});
+  }, 15_000);
 
   // Build a quick lookup of routeId -> vehicleKind
   const routeKindById = useMemo(() => {

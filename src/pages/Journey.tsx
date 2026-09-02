@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { planJourney } from '@/api/journey';
 import { useTripStore } from '@/state/trip';
@@ -15,21 +16,18 @@ import type { Journey, JourneyStep, LatLng, VehicleKind, Route } from '@/api/typ
 
 type Phase = 'idle' | 'locating' | 'planning' | 'results' | 'error';
 
-const VEHICLE_FILTERS: Array<{ key: VehicleKind | 'all'; label: string; emoji: string }> = [
-  { key: 'all', label: 'Todo', emoji: '🚌' },
-  { key: 'bus', label: 'Bus', emoji: '🚌' },
-  { key: 'train', label: 'Tren', emoji: '🚆' },
-  { key: 'tram', label: 'Tram', emoji: '🚊' },
-  { key: 'metro', label: 'Metro', emoji: '🚇' },
-];
+type VehicleFilterKey = VehicleKind | 'all';
+
+const VEHICLE_FILTER_KEYS: VehicleFilterKey[] = ['all', 'bus', 'train', 'tram', 'metro'];
 
 export default function JourneyPage() {
+  const { t } = useTranslation();
   const [phase, setPhase] = useState<Phase>('idle');
   const [origin, setOrigin] = useState<LatLng | null>(null);
   const [destination, setDestination] = useState<LatLng | null>(null);
   const [results, setResults] = useState<Journey[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [vehicleFilter, setVehicleFilter] = useState<VehicleKind | 'all'>('all');
+  const [vehicleFilter, setVehicleFilter] = useState<VehicleFilterKey>('all');
   const [avoidRunning, setAvoidRunning] = useState(true);
   const [maxBoardings, setMaxBoardings] = useState(3);
 
@@ -45,7 +43,7 @@ export default function JourneyPage() {
       });
       setOrigin({ lat: sample.coords.latitude, lng: sample.coords.longitude });
     } catch {
-      setError('No hemos podido obtener tu ubicación. Configúrala manualmente.');
+      setError(t('journey.errorTitle'));
     } finally {
       setPhase('idle');
     }
@@ -66,7 +64,9 @@ export default function JourneyPage() {
       setResults(res.journeys);
       setPhase('results');
     } catch (err) {
-      setError(`Error: ${err instanceof Error ? err.message : err}`);
+      setError(t('journey.errorTitle'));
+      // Keep the raw error in the console for debugging.
+      console.error(err);
       setPhase('error');
     }
   };
@@ -78,8 +78,8 @@ export default function JourneyPage() {
           <div className="empty-illustration">
             <MapIcon size={40} />
           </div>
-          <h3>{phase === 'locating' ? 'Detectando ubicación…' : 'Calculando rutas…'}</h3>
-          <p className="text-sm text-muted">Esto puede tardar unos segundos.</p>
+          <h3>{phase === 'locating' ? t('journey.locating') : t('journey.planning')}</h3>
+          <p className="text-sm text-muted">{t('journey.mayTakeSeconds')}</p>
         </div>
       </div>
     );
@@ -92,10 +92,10 @@ export default function JourneyPage() {
           <div className="empty-illustration" style={{ background: 'var(--danger)', color: 'white' }}>
             <AlertTriangle size={40} />
           </div>
-          <h3>Error</h3>
+          <h3>{t('journey.errorTitle')}</h3>
           <p>{error}</p>
           <button type="button" className="btn btn-primary" onClick={() => setPhase('idle')}>
-            Volver
+            {t('journey.back')}
           </button>
         </div>
       </div>
@@ -106,16 +106,16 @@ export default function JourneyPage() {
     return (
       <div className="page">
         <header className="page-header">
-          <h1>Cómo llegar</h1>
+          <h1>{t('journey.title')}</h1>
         </header>
         <div className="empty">
           <div className="empty-illustration">
             <AlertTriangle size={40} />
           </div>
-          <h3>No hemos encontrado rutas</h3>
-          <p>No hay combinaciones de bus/tren que conecten tu origen con tu destino en este horario.</p>
+          <h3>{t('journey.noResults')}</h3>
+          <p>{t('journey.noResultsHint')}</p>
           <button type="button" className="btn btn-primary" onClick={() => setPhase('idle')}>
-            Probar de nuevo
+            {t('journey.retry')}
           </button>
         </div>
       </div>
@@ -126,9 +126,9 @@ export default function JourneyPage() {
     return (
       <div className="page">
         <header className="page-header">
-          <h1>Cómo llegar</h1>
+          <h1>{t('journey.title')}</h1>
           <button type="button" className="btn btn-sm" onClick={() => setPhase('idle')}>
-            Nueva búsqueda
+            {t('journey.newSearch')}
           </button>
         </header>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -141,67 +141,81 @@ export default function JourneyPage() {
   return (
     <div className="page">
       <header className="page-header">
-        <h1>Cómo llegar</h1>
+        <h1>{t('journey.title')}</h1>
       </header>
 
-      <p className="text-muted mb-4">
-        Te diremos cómo ir de un punto a otro combinando bus y tren, ordenado por transbordos.
-      </p>
+      <p className="text-muted mb-4">{t('journey.intro')}</p>
 
       <section className="card mb-3">
-        <div className="card-title mb-2">Origen</div>
+        <div className="card-title mb-2">{t('journey.origin')}</div>
         <div className="row gap-2" style={{ alignItems: 'center' }}>
           <button type="button" className="btn" onClick={() => void locateMe()}>
-            <MapIcon size={14} /> Usar mi ubicación
+            <MapIcon size={14} /> {t('journey.useMyLocation')}
           </button>
-          <span className="text-xs text-muted">o</span>
+          <span className="text-xs text-muted">{t('journey.or')}</span>
           <input
             className="input"
-            placeholder="lat, lng (ej: 40.417, -3.703)"
+            placeholder={t('journey.latLngPlaceholder')}
             onChange={(e) => {
               const [lat, lng] = e.target.value.split(',').map((s) => parseFloat(s.trim()));
-              if (!isNaN(lat) && !isNaN(lng)) setOrigin({ lat, lng });
+              if (lat != null && lng != null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
+                setOrigin({ lat, lng });
+              }
             }}
           />
         </div>
         {origin && (
           <div className="text-xs text-muted mt-2">
-            Origen: {origin.lat.toFixed(4)}, {origin.lng.toFixed(4)}
+            {t('journey.originCoords', { lat: origin.lat.toFixed(4), lng: origin.lng.toFixed(4) })}
           </div>
         )}
       </section>
 
       <section className="card mb-3">
-        <div className="card-title mb-2">Destino</div>
+        <div className="card-title mb-2">{t('journey.destination')}</div>
         <input
           className="input"
-          placeholder="lat, lng (ej: 40.493, -3.567)"
+          placeholder={t('journey.latLngPlaceholder')}
           onChange={(e) => {
             const [lat, lng] = e.target.value.split(',').map((s) => parseFloat(s.trim()));
-            if (!isNaN(lat) && !isNaN(lng)) setDestination({ lat, lng });
+            if (lat != null && lng != null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
+              setDestination({ lat, lng });
+            }
           }}
         />
         {destination && (
           <div className="text-xs text-muted mt-2">
-            Destino: {destination.lat.toFixed(4)}, {destination.lng.toFixed(4)}
+            {t('journey.destinationCoords', { lat: destination.lat.toFixed(4), lng: destination.lng.toFixed(4) })}
           </div>
         )}
       </section>
 
       <section className="card mb-3">
-        <div className="card-title mb-2">Filtros</div>
+        <div className="card-title mb-2">{t('journey.filters')}</div>
         <div className="row gap-2" style={{ flexWrap: 'wrap', marginBottom: 8 }}>
-          {VEHICLE_FILTERS.map((f) => (
-            <button
-              key={f.key}
-              type="button"
-              className={`chip ${vehicleFilter === f.key ? 'active' : ''}`}
-              onClick={() => setVehicleFilter(f.key as any)}
-            >
-              <span style={{ marginRight: 4 }}>{f.emoji}</span>
-              {f.label}
-            </button>
-          ))}
+          {VEHICLE_FILTER_KEYS.map((k) => {
+            // The "all" pseudo-key and each real VehicleKind get their
+            // own i18n string. We deliberately don't hardcode English
+            // fallbacks — the `t()` call below requires the keys to
+            // exist in every locale.
+            const labelKey = k === 'all' ? 'home.exploreMap' : `vehicle.${k}`;
+            const emoji = k === 'all' ? '🚌'
+              : k === 'bus' ? '🚌'
+              : k === 'train' ? '🚆'
+              : k === 'tram' ? '🚊'
+              : '🚇';
+            return (
+              <button
+                key={k}
+                type="button"
+                className={`chip ${vehicleFilter === k ? 'active' : ''}`}
+                onClick={() => setVehicleFilter(k)}
+              >
+                <span style={{ marginRight: 4 }}>{emoji}</span>
+                {t(labelKey)}
+              </button>
+            );
+          })}
         </div>
         <label className="row gap-2" style={{ alignItems: 'center', fontSize: 'var(--fs-sm)' }}>
           <input
@@ -209,10 +223,10 @@ export default function JourneyPage() {
             checked={avoidRunning}
             onChange={(e) => setAvoidRunning(e.target.checked)}
           />
-          <span>Evitar que tenga que correr entre transbordos</span>
+          <span>{t('journey.avoidRunning')}</span>
         </label>
         <div className="row gap-2" style={{ alignItems: 'center', fontSize: 'var(--fs-sm)', marginTop: 8 }}>
-          <span>Máx. transbordos:</span>
+          <span>{t('journey.maxTransfers')}</span>
           <input
             type="number"
             min={1}
@@ -231,23 +245,27 @@ export default function JourneyPage() {
         disabled={!origin || !destination}
         onClick={() => void plan()}
       >
-        <Check size={18} /> Buscar ruta
+        <Check size={18} /> {t('journey.search')}
       </button>
     </div>
   );
 }
 
 function JourneyCard({ journey }: { journey: Journey }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const navigate = useNavigate();
   const startTrip = useTripStore((s) => s.startTrip);
   const minutes = Math.round(journey.totalDurationS / 60);
   const transfers = Math.max(0, journey.boardings - 1);
   const walkSpeed = journey.maxRequiredWalkSpeedMs;
-  const walkKind = walkSpeed <= 1.5 ? 'stroll' : walkSpeed <= 2.4 ? 'brisk' : 'running';
-  const walkLabel = walkKind === 'stroll' ? '🥾 Tranquilo' :
-                   walkKind === 'brisk' ? '🚶 Rápido' :
-                   '🏃 ¡A correr!';
+  const walkKind: 'stroll' | 'brisk' | 'running' = walkSpeed <= 1.5 ? 'stroll' : walkSpeed <= 2.4 ? 'brisk' : 'running';
+  const walkLabelKey = walkKind === 'stroll' ? 'journey.walkStroll'
+    : walkKind === 'brisk' ? 'journey.walkBrisk'
+    : 'journey.walkRunning';
+  const walkSpeedKey = walkKind === 'stroll' ? 'journey.walkBriskSpeed'
+    : walkKind === 'brisk' ? 'journey.walkBriskSpeed'
+    : 'journey.walkRunningSpeed';
 
   // First ride step defines the route the user will start on
   const firstRide = journey.steps.find((s) => s.kind === 'ride') as Extract<JourneyStep, { kind: 'ride' }> | undefined;
@@ -276,11 +294,17 @@ function JourneyCard({ journey }: { journey: Journey }) {
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 'var(--fs-lg)', fontWeight: 700 }}>{minutes} min</div>
           <div className="text-sm text-muted">
-            {journey.boardings} viaje{journey.boardings > 1 ? 's' : ''} · {transfers === 0 ? 'sin transbordos' : `${transfers} transbordo${transfers > 1 ? 's' : ''}`} · {formatDistance(journey.totalWalkM)} andando
+            {t('journey.rides', { n: journey.boardings })}
+            {' · '}
+            {transfers === 0
+              ? t('journey.noTransfers')
+              : t('journey.transfers', { n: transfers })}
+            {' · '}
+            {formatDistance(journey.totalWalkM)} {t('journey.walking')}
           </div>
         </div>
         <div className="text-right">
-          <div className="text-xs text-muted">Llega a las</div>
+          <div className="text-xs text-muted">{t('journey.arrivesAt')}</div>
           <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}>
             {new Date(journey.arriveByUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </div>
@@ -290,7 +314,7 @@ function JourneyCard({ journey }: { journey: Journey }) {
       {walkKind !== 'stroll' && (
         <div className={`banner ${walkKind === 'running' ? 'banner-danger' : 'banner-warning'} mb-2 text-sm`}>
           <PersonStanding size={16} />
-          <span>Vas a tener que {walkKind === 'running' ? 'correr' : 'caminar rápido'}: {walkLabel}</span>
+          <span>{t('journey.walkHint', { speed: t(walkSpeedKey), label: t(walkLabelKey) })}</span>
         </div>
       )}
 
@@ -299,7 +323,7 @@ function JourneyCard({ journey }: { journey: Journey }) {
         className="btn btn-block"
         onClick={() => setExpanded((v) => !v)}
       >
-        {expanded ? 'Ocultar pasos' : 'Ver pasos'}
+        {expanded ? t('journey.hideSteps') : t('journey.showSteps')}
       </button>
 
       {firstRide && (
@@ -308,7 +332,7 @@ function JourneyCard({ journey }: { journey: Journey }) {
           className="btn btn-primary btn-block mt-2"
           onClick={() => void handleStart()}
         >
-          <Play size={16} /> Iniciar este viaje
+          <Play size={16} /> {t('journey.startTrip')}
         </button>
       )}
 
@@ -322,6 +346,7 @@ function JourneyCard({ journey }: { journey: Journey }) {
 }
 
 function StepRow({ step }: { step: JourneyStep }) {
+  const { t } = useTranslation();
   if (step.kind === 'walk') {
     return (
       <li className="row gap-2" style={{ alignItems: 'center' }}>
@@ -329,8 +354,8 @@ function StepRow({ step }: { step: JourneyStep }) {
           <PersonStanding size={16} />
         </div>
         <div style={{ flex: 1 }}>
-          <div className="text-sm">Camina {formatDistance(step.distanceM)}</div>
-          <div className="text-xs text-muted">≈ {Math.round(step.durationS / 60)} min</div>
+          <div className="text-sm">{t('journey.walkStep', { dist: formatDistance(step.distanceM) })}</div>
+          <div className="text-xs text-muted">{t('journey.approxMinutes', { n: Math.round(step.durationS / 60) })}</div>
         </div>
       </li>
     );

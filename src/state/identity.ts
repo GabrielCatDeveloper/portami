@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 import {
   anonIdFor,
+  bytesToBase64Url,
   exportPrivateKeyJwk,
   generateIdentityKeyPair,
+  generateEcdh,
   importPrivateKeyJwk,
-  importPublicKeyB64,
   randomUUID,
 } from '@/crypto';
 import { getDB, getIdentity, setIdentity, clearIdentity } from '@/storage/db';
@@ -17,9 +18,22 @@ type IdentityState = {
   init(): Promise<void>;
   ensure(): Promise<Identity>;
   regenerate(): Promise<Identity>;
-  importFromJwk(privJwk: JsonWebKey, pubB64: string): Promise<Identity>;
+  /** Import an identity from a JWK (private key). The public key is
+   *  derived from the JWK itself, so callers don't need to pass it
+   *  — this prevents pairing a private key with a forged public key. */
+  importFromJwk(privJwk: JsonWebKey): Promise<Identity>;
   reset(): Promise<void>;
 };
+
+/** Derive the base64url Ed25519 public key from a private JWK. */
+async function pubFromJwk(privJwk: JsonWebKey): Promise<string> {
+  const priv = await importPrivateKeyJwk(privJwk);
+  const jwk = await crypto.subtle.exportKey('jwk', priv);
+  if (!jwk.x) {
+    throw new Error('JWK no contiene clave pública (x). ¿Formato corrupto?');
+  }
+  return jwk.x;
+}
 
 export const useIdentityStore = create<IdentityState>((set, get) => ({
   identity: null,
@@ -44,8 +58,9 @@ export const useIdentityStore = create<IdentityState>((set, get) => ({
 
   async ensure() {
     if (!get().initialized) await get().init();
-    if (!get().identity) throw new Error('Identity unavailable');
-    return get().identity!;
+    const id = get().identity;
+    if (!id) throw new Error('Identity unavailable');
+    return id;
   },
 
   async regenerate() {
@@ -62,18 +77,13 @@ export const useIdentityStore = create<IdentityState>((set, get) => ({
     return id;
   },
 
-  async importFromJwk(privJwk, pubB64) {
-    const privKey = await importPrivateKeyJwk(privJwk);
-    // sanity-check: pub derived from priv should match
-    const derivedPub = await crypto.subtle.exportKey('raw', privKey as CryptoKey).catch(() => null);
-    // Ed25519 priv JWK doesn't include pub in some impls, so just trust both fields:
+  async importFromJwk(privJwk) {
+    const pubKey = await pubFromJwk(privJwk);
     const id: Identity = {
-      pubKey: pubB64,
+      pubKey,
       privKeyJwk: privJwk,
       createdAt: Date.now(),
     };
-    void derivedPub; // currently unused
-    void (await importPublicKeyB64(pubB64));
     await setIdentity(id);
     const anonId = await anonIdFor(id.pubKey);
     set({ identity: id, anonId });
@@ -100,35 +110,53 @@ export const useIdentityStore = create<IdentityState>((set, get) => ({
 }));
 
 // ============================================================
-// Device identity (used for WebRTC pairing) — generated once, never shared
+// Device key (used for WebRTC pairing + ECDH identity transfer).
+//
+// Unlike the user identity (Ed25519), the device key is an
+// ECDH P-256 keypair: it's used both to identify the device in
+// the `hello` message and to derive the shared secret that
+// protects the user's Ed25519 identity during the initial
+// pairing. The private key never leaves the device.
 // ============================================================
 type DeviceKeyState = {
   deviceId: string;
   pubKey: string | null;
-  ensure(): Promise<{ deviceId: string; pubKey: string }>;
+  /** Loaded device ECDH private key (CryptoKey). Cleared from cache
+   *  on identity reset — re-loaded on next `ensure()`. */
+  privKey: CryptoKey | null;
+  ensure(): Promise<{ deviceId: string; pubKey: string; privKey: CryptoKey }>;
 };
 
 export const useDeviceKeyStore = create<DeviceKeyState>((set, get) => ({
   deviceId: '',
   pubKey: null,
+  privKey: null,
 
   async ensure() {
-    if (get().pubKey && get().deviceId) {
-      return { deviceId: get().deviceId, pubKey: get().pubKey! };
+    const cur = get();
+    if (cur.pubKey && cur.deviceId && cur.privKey) {
+      return { deviceId: cur.deviceId, pubKey: cur.pubKey, privKey: cur.privKey };
     }
     const db = await getDB();
     let stored = await db.get('deviceKey', 'self');
     if (!stored) {
-      const kp = await generateIdentityKeyPair();
+      const kp = await generateEcdh();
       stored = {
         deviceId: randomUUID(),
-        pubKey: kp.pubKeyB64,
-        privKeyJwk: await exportPrivateKeyJwk(kp.privKey),
+        pubKey: bytesToBase64Url(kp.pubRaw),
+        privKeyJwk: await crypto.subtle.exportKey('jwk', kp.privKey),
         createdAt: Date.now(),
       };
       await db.put('deviceKey', stored, 'self');
     }
-    set({ deviceId: stored.deviceId, pubKey: stored.pubKey });
-    return { deviceId: stored.deviceId, pubKey: stored.pubKey };
+    const privKey = await crypto.subtle.importKey(
+      'jwk',
+      stored.privKeyJwk,
+      { name: 'ECDH', namedCurve: 'P-256' },
+      false,
+      ['deriveKey', 'deriveBits'],
+    );
+    set({ deviceId: stored.deviceId, pubKey: stored.pubKey, privKey });
+    return { deviceId: stored.deviceId, pubKey: stored.pubKey, privKey };
   },
 }));

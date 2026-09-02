@@ -28,6 +28,7 @@ export function isRouteActiveAt(route: Route, at: Date = new Date()): boolean {
     return s.intervals.some((iv) => {
       const [sh, sm] = iv.start.split(':').map(Number);
       const [eh, em] = iv.end.split(':').map(Number);
+      if (sh == null || sm == null || eh == null || em == null) return false;
       const tStart = sh * 60 + sm;
       const tEnd = eh * 60 + em;
       return tNow >= tStart && tNow <= tEnd;
@@ -40,14 +41,10 @@ export function summarizeSchedule(route: Route): string {
   // If multiple schedules, just say "Ver horarios"
   if (route.schedules.length > 1) return `${route.schedules.length} horarios`;
   const s = route.schedules[0];
+  if (!s) return 'Sin horario definido';
   const days = dayNames(s.daysOfWeek);
   const intervals = s.intervals.map((iv) => `${iv.start}–${iv.end}`).join(', ');
   return `${days} · ${intervals}`;
-}
-
-/** Format an HH:MM range as "HH:MM–HH:MM". */
-export function formatInterval(start: string, end: string): string {
-  return `${start}–${end}`;
 }
 
 export function isIncidentVisible(i: Incident, now = Date.now()): boolean {
@@ -73,5 +70,3 @@ export function incidentLabel(kind: Incident['kind']): string {
     default: return 'Incidencia';
   }
 }
-
-void formatInterval;

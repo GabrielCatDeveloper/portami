@@ -479,6 +479,31 @@ export type SyncMessage =
       etaNextStopS?: number;
     }
   | { kind: 'trip-share-end'; tripShareId: string; fromAnonId: string; ts: number; reason: string }
+  // "Rescue me" panic button. One-shot, broadcast to all paired
+  // peers, direct device-to-device. Unlike the regular trip-share
+  // flow, this is a high-priority alert: the receiver should
+  // surface it as a top-of-screen banner, vibrate, and offer a
+  // "navigate to them" CTA. The `rescueId` is a UUID used so the
+  // receiver can ack and the sender can track acknowledgements.
+  | {
+      kind: 'trip-share-rescue';
+      rescueId: string;
+      fromAnonId: string;
+      fromDeviceId: string;
+      fromAlias?: string;
+      ts: number;
+      lat?: number;
+      lng?: number;
+      accuracyM?: number;
+      message?: string;
+    }
+  | {
+      kind: 'trip-share-rescue-ack';
+      rescueId: string;
+      fromAnonId: string;
+      fromDeviceId: string;
+      ts: number;
+    }
   // Ack from receiver → sender. Sent in response to `trip-share-start`
   // (mandatory) and optionally to `trip-share-location`/`trip-share-end`.
   | {

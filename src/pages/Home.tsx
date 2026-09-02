@@ -83,7 +83,7 @@ export default function HomePage() {
             boxShadow: 'var(--shadow-md)',
           }}
         >
-          <Bus size={22} /> He subido a un bus/tren
+          <Bus size={22} /> {t('home.board')}
         </Link>
 
         {/* Secondary CTA: Plan a trip A → B */}
@@ -91,7 +91,7 @@ export default function HomePage() {
           to="/journey"
           className="btn btn-block mb-3"
         >
-          <RouteIcon size={20} /> Planear un viaje (origen → destino)
+          <RouteIcon size={20} /> {t('home.plan')}
         </Link>
 
         <h3 className="mb-3 text-muted text-sm">{t('home.quickActions')}</h3>

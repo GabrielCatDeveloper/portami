@@ -243,11 +243,12 @@ export function useTripShareBridge(opts: {
     const paired = await sync.loadPairedDevices();
     const recipients: Record<string, OutgoingTripShareRecipient> = {};
     for (const p of paired) {
-      recipients[p.deviceId] = makeRecipient(p.deviceId, p.alias);
+      const recip = makeRecipient(p.deviceId, p.alias);
       // If the peer is currently disconnected, reflect that immediately.
       if (sync.getPeerStatus(p.deviceId) !== 'connected') {
-        recipients[p.deviceId].status = 'unreachable';
+        recip.status = 'unreachable';
       }
+      recipients[p.deviceId] = recip;
     }
 
     const share: OutgoingTripShare = {
@@ -351,22 +352,11 @@ export function useTripShareBridge(opts: {
         lastAttemptAt: Date.now(),
         error: 'peer disconnected',
       });
-      useTripShareStore.setState((state) => ({
-        outgoing: state.outgoing
-          ? {
-              ...state.outgoing,
-              recipients: {
-                ...state.outgoing.recipients,
-                [deviceId]: {
-                  ...state.outgoing.recipients[deviceId],
-                  status: 'unreachable',
-                  lastAttemptAt: Date.now(),
-                  error: 'peer disconnected',
-                },
-              },
-            }
-          : state.outgoing,
-      }));
+      patchRecipientInStore(deviceId, {
+        status: 'unreachable',
+        lastAttemptAt: Date.now(),
+        error: 'peer disconnected',
+      });
       return;
     }
 
@@ -385,21 +375,10 @@ export function useTripShareBridge(opts: {
       status: 'pending',
       lastAttemptAt: Date.now(),
     });
-    useTripShareStore.setState((state) => ({
-      outgoing: state.outgoing
-        ? {
-            ...state.outgoing,
-            recipients: {
-              ...state.outgoing.recipients,
-              [deviceId]: {
-                ...state.outgoing.recipients[deviceId],
-                status: 'pending',
-                lastAttemptAt: Date.now(),
-              },
-            },
-          }
-        : state.outgoing,
-    }));
+    patchRecipientInStore(deviceId, {
+      status: 'pending',
+      lastAttemptAt: Date.now(),
+    });
     armAckTimer(share.id, deviceId, /* attempt */ 1);
   }
 
@@ -430,21 +409,10 @@ export function useTripShareBridge(opts: {
         lastAttemptAt: Date.now(),
         error: attempt === 1 ? 'no ack after retry' : 'no ack',
       });
-      useTripShareStore.setState((state) => ({
-        outgoing: state.outgoing
-          ? {
-              ...state.outgoing,
-              recipients: {
-                ...state.outgoing.recipients,
-                [deviceId]: {
-                  ...state.outgoing.recipients[deviceId],
-                  status: 'failed',
-                  lastAttemptAt: Date.now(),
-                },
-              },
-            }
-          : state.outgoing,
-      }));
+      patchRecipientInStore(deviceId, {
+        status: 'failed',
+        lastAttemptAt: Date.now(),
+      });
     }, ACK_TIMEOUT_MS);
     perShare.set(deviceId, handle);
   }
@@ -467,6 +435,32 @@ export function useTripShareBridge(opts: {
   }
 
   /**
+   * Apply a patch to one cached outgoing recipient in the reactive
+   * store. If the cached share is missing (race) we no-op; the
+   * authoritative state lives in IndexedDB via updateOutgoingRecipient.
+   */
+  function patchRecipientInStore(
+    deviceId: string,
+    patch: Partial<OutgoingTripShareRecipient>,
+  ): void {
+    useTripShareStore.setState((state) => {
+      const cur = state.outgoing;
+      if (!cur) return state;
+      const prevRecip = cur.recipients[deviceId];
+      if (!prevRecip) return state;
+      return {
+        outgoing: {
+          ...cur,
+          recipients: {
+            ...cur.recipients,
+            [deviceId]: { ...prevRecip, ...patch },
+          },
+        },
+      };
+    });
+  }
+
+  /**
    * Called from the receiver-side subscribe loop when we get a
    * `trip-share-ack` (i.e. the friend confirmed they received the
    * start). Marks the recipient `delivered` and clears its timer.
@@ -482,21 +476,10 @@ export function useTripShareBridge(opts: {
       status: 'delivered',
       deliveredAt: Date.now(),
     });
-    useTripShareStore.setState((state) => ({
-      outgoing: state.outgoing && state.outgoing.id === tripShareId
-        ? {
-            ...state.outgoing,
-            recipients: {
-              ...state.outgoing.recipients,
-              [deviceId]: {
-                ...state.outgoing.recipients[deviceId],
-                status: 'delivered',
-                deliveredAt: Date.now(),
-              },
-            },
-          }
-        : state.outgoing,
-    }));
+    patchRecipientInStore(deviceId, {
+      status: 'delivered',
+      deliveredAt: Date.now(),
+    });
   }
 
   return {

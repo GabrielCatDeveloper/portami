@@ -12,15 +12,20 @@ export default function SyncPage() {
   const [pasteValue, setPasteValue] = useState('');
   const [copied, setCopied] = useState(false);
   const [devices, setDevices] = useState<PairedDevice[]>([]);
+  const [showJoinPaste, setShowJoinPaste] = useState(false);
 
   useEffect(() => {
     void loadPairedDevices().then(setDevices);
   }, [phase, loadPairedDevices]);
 
   const copy = async (text: string) => {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard unavailable — user can still paste manually.
+    }
   };
 
   const onStartPair = async () => {
@@ -82,12 +87,8 @@ export default function SyncPage() {
                 type="button"
                 className="btn btn-lg btn-block"
                 onClick={() => {
-                  void sync.reset();
-                  const newText = window.prompt('Pega el offer SDP del otro dispositivo:');
-                  if (newText) {
-                    setPasteValue(newText);
-                    void onJoin();
-                  }
+                  setShowJoinPaste(true);
+                  setPasteValue('');
                 }}
               >
                 <Camera size={20} /> {t('sync.pairJoin')}
@@ -96,7 +97,43 @@ export default function SyncPage() {
           </div>
 
           <section className="card mt-4">
-            <div className="card-title mb-2">{t('sync.devices')}</div>
+            {showJoinPaste && sync.phase === 'idle' && (
+            <section className="card mb-4" style={{ maxWidth: 360, width: '100%', margin: '0 auto' }}>
+              <div className="card-title mb-2">Pegar offer del otro dispositivo</div>
+              <p className="text-sm text-muted mb-2">
+                Copia el offer SDP que te ha pasado tu amigo y pégalo aquí.
+              </p>
+              <textarea
+                className="textarea"
+                value={pasteValue}
+                onChange={(e) => setPasteValue(e.target.value)}
+                placeholder='{"type":"offer","sdp":"v=0..."}'
+                style={{ fontFamily: 'var(--font-mono)', fontSize: 12, minHeight: 100 }}
+              />
+              <div className="row gap-2 mt-3">
+                <button
+                  type="button"
+                  className="btn flex-1"
+                  onClick={() => setShowJoinPaste(false)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary flex-1"
+                  onClick={() => {
+                    setShowJoinPaste(false);
+                    void onJoin();
+                  }}
+                  disabled={!pasteValue.trim()}
+                >
+                  Empezar
+                </button>
+              </div>
+            </section>
+          )}
+
+          <div className="card-title mb-2">{t('sync.devices')}</div>
             {devices.length === 0 ? (
               <p className="text-sm text-muted">{t('sync.noDevices')}</p>
             ) : (

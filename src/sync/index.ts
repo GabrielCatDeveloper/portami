@@ -181,6 +181,9 @@ export const useSyncStore = create<SyncState>((set, get) => {
     const deviceKey = await useDeviceKeyStore.getState().ensure();
     const myAlias = await suggestAlias();
     set({ myAlias });
+    // Store the device private key on the bootstrap closure so the
+    // message handlers below can use it for ECDH derivation.
+    (entry as PeerEntry & { devicePrivKey: CryptoKey }).devicePrivKey = deviceKey.privKey;
 
     p.on('open', () => {
       updatePeerInfo(deviceId, { status: 'connected', lastConnectedAt: Date.now() });
@@ -241,7 +244,7 @@ export const useSyncStore = create<SyncState>((set, get) => {
     msg: SyncMessage,
     get: () => SyncState,
     set: (partial: Partial<SyncState>) => void,
-    role: 'initiator' | 'joiner',
+    _role: 'initiator' | 'joiner',
     deviceId: string,
   ) {
     const state = get();
@@ -286,12 +289,27 @@ export const useSyncStore = create<SyncState>((set, get) => {
     }
 
     if (msg.kind === 'identity-transfer') {
-      const jwk = await decryptIdentityFromPeer(msg);
-      const peerPub = state.remotePubKey;
-      if (!peerPub) return;
+      const entryWithKey = peerEntries.get(deviceId) as
+        | (PeerEntry & { devicePrivKey?: CryptoKey })
+        | undefined;
+      if (!entryWithKey?.devicePrivKey) {
+        set({ phase: 'error', error: 'device private key unavailable' });
+        p.close();
+        return;
+      }
+      try {
+        const jwk = await decryptIdentityFromPeer(msg, entryWithKey.devicePrivKey);
+        await useIdentityStore.getState().importFromJwk(jwk);
+      } catch (err) {
+        set({
+          phase: 'error',
+          error: err instanceof Error ? `identity transfer failed: ${err.message}` : 'identity transfer failed',
+        });
+        p.close();
+        return;
+      }
       p.send({ kind: 'sync-init', lastSyncTs: 0, entityHashes: {} });
       set({ phase: 'syncing', progress: 'Identidad recibida. Sincronizando datos…' });
-      void jwk;
     }
 
     if (msg.kind === 'sync-init') {
@@ -436,7 +454,7 @@ export const useSyncStore = create<SyncState>((set, get) => {
     },
 
     send(msg) {
-      for (const [id, entry] of peerEntries) {
+      for (const [, entry] of peerEntries) {
         if (entry.info.status === 'connected') {
           try {
             entry.peer.send(msg);
@@ -444,8 +462,6 @@ export const useSyncStore = create<SyncState>((set, get) => {
             /* swallow */
           }
         }
-        // Suppress unused warning for `id` in some build configs
-        void id;
       }
     },
 
@@ -491,11 +507,15 @@ export const useSyncStore = create<SyncState>((set, get) => {
 
     listConnectedPeers() {
       const peers = get().peers;
-      return Object.keys(peers).filter((id) => peers[id].status === 'connected');
+      return Object.keys(peers).filter((id) => {
+        const peer = peers[id];
+        return peer?.status === 'connected';
+      });
     },
 
     listAllPeers() {
-      return Object.keys(get().peers);
+      const peers = get().peers;
+      return Object.keys(peers);
     },
   };
 });
@@ -524,7 +544,7 @@ async function pushOwnedEntities(peer: Peer) {
 }
 
 async function applyIncomingEntities(
-  entities: Array<{ type: 'route' | 'proposal' | 'draft'; data: any }>,
+  entities: Array<{ type: 'route' | 'proposal' | 'draft'; data: unknown }>,
 ) {
   const db = await getDB();
   for (const e of entities) {
@@ -550,15 +570,4 @@ async function savePairedDevice(d: PairedDevice) {
   const db = await getDB();
   // Use pubKey as the stable key since we don't have a reliable deviceId
   await db.put('pairedDevices', { ...d, deviceId: d.pubKey }, d.pubKey);
-}
-
-// ============================================================
-// Re-binding helper for known paired devices (used after pairing
-// completes — currently a no-op because the peer is already
-// stored under its temp id; future work: rename the map key to
-// the actual pubKey and persist a mapping for reconnect).
-// ============================================================
-export function _internal_finalizePeerId(_oldId: string, _newId: string) {
-  // Reserved for a future iteration. Left here intentionally so
-  // callers can wire the rename once we add reconnect support.
 }

@@ -1,23 +1,16 @@
 name: Build & Deploy (prod)
 
 on:
-# Trigger on push to main, but ONLY when src/sw.ts (the service worker)
-  # is modified. This prevents accidental deploys on README edits, comment
-  # changes, refactors of unrelated files, etc.
-  #
-  # The Service Worker is the single most deployment-sensitive file: any
-  # change to caching strategy, offline behaviour, notification handlers,
-  # or scope handling must be validated in production.
-  #
-  # NOTE: we cannot trigger on push to prod directly, because peaceiris/
-  # actions-gh-pages refuses to publish from prod to prod. workflow_dispatch
-  # is also available for manual deploys.
+# Build & test on every push to main and on manual trigger.
+# The Service Worker is the single most deployment-sensitive file, so
+# we still keep the prod-branch publishing model below. Code-only
+# pushes that pass all tests but don't need to redeploy are
+# handled by the dedicated `ci.yml` workflow (typecheck/lint/test).
+#
+# NOTE: we cannot trigger on push to prod directly, because peaceiris/
+# actions-gh-pages refuses to publish from prod to prod.
   push:
     branches: [main]
-    # Build ONLY fires when src/sw.ts is modified. Any other push (README,
-    # comments, refactors of unrelated files) is ignored.
-    paths:
-      - 'src/sw.ts'
   workflow_dispatch:
 
 permissions:

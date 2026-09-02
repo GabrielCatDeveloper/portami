@@ -36,9 +36,7 @@ describe('identityTransfer', () => {
       key_ops: ['sign'],
       ext: true,
     };
-    const salt = new Uint8Array(16);
-    crypto.getRandomValues(salt);
-    const sharedA = await deriveSharedAesKey(alice.privKey, bob.pubKey, salt);
+    const sharedA = await deriveSharedAesKey(alice.privKey, bob.pubKey);
     const ct = new Uint8Array(
       await crypto.subtle.encrypt(
         { name: 'AES-GCM', iv: new Uint8Array(12) },
@@ -48,7 +46,7 @@ describe('identityTransfer', () => {
     );
 
     // Receiver side: derive same key using Bob priv + Alice pub, decrypt
-    const sharedB = await deriveSharedAesKey(bob.privKey, alice.pubKey, salt);
+    const sharedB = await deriveSharedAesKey(bob.privKey, alice.pubKey);
     const pt = new Uint8Array(
       await crypto.subtle.decrypt(
         { name: 'AES-GCM', iv: new Uint8Array(12) },
@@ -64,16 +62,42 @@ describe('identityTransfer', () => {
   it('encrypt/decrypt helpers produce valid ciphertext', async () => {
     const a = await generateEcdh();
     const b = await generateEcdh();
-    const salt = new Uint8Array(16);
-    crypto.getRandomValues(salt);
-    const sharedA = await deriveSharedAesKey(a.privKey, b.pubKey, salt);
+    const sharedA = await deriveSharedAesKey(a.privKey, b.pubKey);
 
     const plaintext = new TextEncoder().encode('secret-message-123');
     const { ciphertext, nonce } = await (await import('@/crypto')).aesEncrypt(sharedA, plaintext);
 
     // Try to decrypt with the matching side
-    const sharedB = await deriveSharedAesKey(b.privKey, a.pubKey, salt);
+    const sharedB = await deriveSharedAesKey(b.privKey, a.pubKey);
     const pt = await (await import('@/crypto')).aesDecrypt(sharedB, ciphertext, nonce);
     expect(new TextDecoder().decode(pt)).toBe('secret-message-123');
+  });
+
+  // Regression for the protocol-level bug where decryptIdentityFromPeer
+  // generated a new ephemeral key on each call instead of using the
+  // receiver's stable device key. The encryption was using the
+  // sender's ephemeral priv + receiver's static pub, so the receiver
+  // MUST use its static priv + sender's ephemeral pub to derive the
+  // same shared secret.
+  it('encryptIdentityForPeer / decryptIdentityFromPeer round-trip', async () => {
+    const { encryptIdentityForPeer, decryptIdentityFromPeer } = await import(
+      '@/sync/identityTransfer'
+    );
+
+    // Receiver's stable device ECDH keypair
+    const receiverDevice = await generateEcdh();
+    // Sender encrypts with an ephemeral pub pointing at the receiver
+    const senderJwk: JsonWebKey = {
+      kty: 'OKP',
+      crv: 'Ed25519',
+      d: 'sender-private-bytes',
+      x: 'sender-public-bytes',
+      key_ops: ['sign'],
+      ext: true,
+    };
+    const payload = await encryptIdentityForPeer(senderJwk, receiverDevice.pubRaw);
+    const decrypted = await decryptIdentityFromPeer(payload, receiverDevice.privKey);
+    expect(decrypted.kty).toBe('OKP');
+    expect(decrypted.d).toBe('sender-private-bytes');
   });
 });

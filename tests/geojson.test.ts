@@ -44,8 +44,8 @@ describe('GeoJSON export/import', () => {
     expect(exp.portami.schemaVersion).toBe(1);
     expect(exp.portami.signatures.length).toBeGreaterThan(0);
     expect(exp.features.length).toBe(1);
-    expect(exp.features[0].properties.kind).toBe('route');
-    expect(exp.features[0].geometry.type).toBe('LineString');
+    expect(exp.features[0]?.properties.kind).toBe('route');
+    expect(exp.features[0]?.geometry.type).toBe('LineString');
   });
 
   it('round-trips: export then import preserves signature', async () => {

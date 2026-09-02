@@ -29,7 +29,7 @@ function encodeBase64Url(s: string): string {
   // bytesToBase64Url in @/crypto).
   const bytes = new TextEncoder().encode(s);
   let bin = '';
-  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i] ?? 0);
   const b64 = btoa(bin);
   return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }

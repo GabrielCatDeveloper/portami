@@ -8,6 +8,7 @@
 import type { GPSSample } from '@/api/types';
 import { apiFetch } from '@/api/client';
 import { shouldUseSyntheticGps } from '@/state/testing';
+import { isCollaborateEnabled } from '@/state/collaborate';
 import { SyntheticGpsSource } from './syntheticGps';
 
 type Listener = (sample: GPSSample) => void;
@@ -103,13 +104,39 @@ export class GeoWatcher {
       this.permission = 'error';
       return this.permission;
     }
-    if ('permissions' in navigator) {
+    // Permission values that the Permissions API can actually return
+// for `geolocation`. `'error'` is our internal state for browsers
+// that don't expose this descriptor; we never set it from here.
+type ReportedPermission = 'granted' | 'denied' | 'prompt' | 'unknown';
+
+function isReportedPermission(s: string): s is ReportedPermission {
+  return s === 'granted' || s === 'denied' || s === 'prompt' || s === 'unknown';
+}
+
+function narrow(s: string): GeoPermission {
+  return isReportedPermission(s) ? s : 'unknown';
+}
+
+if ('permissions' in navigator) {
       try {
-        const status = await (navigator.permissions as any).query({ name: 'geolocation' });
-        this.permission = status.state as GeoPermission;
-        status.onchange = () => {
-          this.permission = status.state as GeoPermission;
+        // The Permissions API typings in lib.dom.d.ts don't include
+        // the geolocation descriptor; cast through unknown to a
+        // minimal interface that captures only what we use.
+        const perms = navigator.permissions as unknown as {
+          query?: (opts: { name: string }) => Promise<{ state: string; onchange?: (() => void) | null }>;
         };
+        if (typeof perms.query !== 'function') {
+          this.permission = 'unknown';
+        } else {
+          const status = await perms.query({ name: 'geolocation' });
+          this.permission = narrow(status.state);
+          if (status.onchange) {
+            const handler = () => {
+              this.permission = narrow(status.state);
+            };
+            status.onchange = handler;
+          }
+        }
       } catch {
         this.permission = 'unknown';
       }
@@ -190,7 +217,13 @@ export class GeoWatcher {
       return;
     }
 
-    // Dedup: skip if moved < 5m and < 5s passed
+    // Dedup: skip if moved less than ~5 m AND less than 5 s passed.
+    // We compare (lat² + lng²) deltas to avoid the cost of sqrt + cos
+    // for haversine on every sample; this is a coarse approximation
+    // around Madrid latitudes. 5 m at 40°N ≈ 5/111_320 deg lat ≈ 4.5e-5
+    // so the squared delta threshold for "moved 5 m" is ≈ 2e-9. We
+    // round to 1e-9 to leave headroom for noise — meaning we actually
+    // dedup movements < ~3 m. Bump if you need stricter 5 m gating.
     if (this.lastPos) {
       const dt = sample.ts - this.lastPos.ts;
       const movedSq = (sample.lat - this.lastPos.lat) ** 2 + (sample.lng - this.lastPos.lng) ** 2;
@@ -201,8 +234,18 @@ export class GeoWatcher {
     // Always notify local listeners (for UI + trip detector)
     this.listeners.forEach((fn) => fn(sample));
 
-    // Throttled push to server if we have a trip
-    if (this.currentTripId && sample.ts - this.lastSentTs >= this.sendEveryMs) {
+    // Throttled push to server if we have a trip AND the user has
+    // explicitly opted in to "Modo colaborador" (Settings). The flag
+    // is OFF by default — we MUST NOT post GPS to the server
+    // unless the user actively enabled it. P2P friend sharing
+    // (useTripShareBridge) is a separate, opt-in flow that doesn't
+    // touch the server. See ROADMAP_FUTURE.md → "Regla de oro de
+    // privacidad" for the full rule.
+    if (
+      this.currentTripId &&
+      sample.ts - this.lastSentTs >= this.sendEveryMs &&
+      isCollaborateEnabled()
+    ) {
       this.lastSentTs = sample.ts;
       void this.pushSample(this.currentTripId, sample);
     }

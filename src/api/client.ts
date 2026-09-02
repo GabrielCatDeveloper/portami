@@ -7,7 +7,6 @@ import {
   randomNonce,
   signMessage,
 } from '@/crypto';
-import { getDB } from '@/storage/db';
 import { useIdentityStore } from '@/state/identity';
 import type { SignedEnvelope } from '@/api/types';
 import { backoffMs, getHealthSnapshot, subscribeHealth } from './health';
@@ -130,51 +129,6 @@ export async function apiFetch<T = unknown>(
     throw new ServerOfflineError();
   }
   throw lastErr;
-}
-
-// Backwards-compatible wrappers used elsewhere
-
-export async function signedPostOrQueue<T = unknown>(
-  path: string,
-  body: unknown,
-  queueKey: string,
-): Promise<T | undefined> {
-  try {
-    return await apiFetch<T>(path, { method: 'POST', body, signed: true });
-  } catch (err) {
-    if (err instanceof ServerOfflineError || (typeof navigator !== 'undefined' && !navigator.onLine)) {
-      const db = await getDB();
-      await db.put(
-        'pendingSamples' as any,
-        {
-          tripId: queueKey,
-          ts: Date.now(),
-          sample: { ts: Date.now(), lat: 0, lng: 0, acc: 0, _queued: body } as any,
-        } as any,
-      );
-      return undefined;
-    }
-    throw err;
-  }
-}
-
-export async function drainOfflineQueue(): Promise<number> {
-  if (!navigator.onLine) return 0;
-  const db = await getDB();
-  const items = await db.getAll('pendingSamples' as any);
-  let drained = 0;
-  for (const item of items as any[]) {
-    const queued = item.sample?._queued;
-    if (!queued) continue;
-    try {
-      await apiFetch('/queue/flush', { method: 'POST', body: queued, signed: true });
-      await db.delete('pendingSamples' as any, item.tripId);
-      drained++;
-    } catch {
-      // skip
-    }
-  }
-  return drained;
 }
 
 // Re-export for callers that want to react to status changes

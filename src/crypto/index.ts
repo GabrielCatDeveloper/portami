@@ -132,13 +132,24 @@ export async function verifySignature(
 // ============================================================
 // Anon ID
 // ============================================================
-const CACHE: Record<string, string> = {};
+// Bounded LRU-ish cache of derived anonIds. Each entry maps a
+// base64url public key (≈44 chars) to an 9-char string. We cap at
+// 1024 entries to bound memory under long-running sessions or
+// malicious inputs.
+const ANON_ID_CACHE_MAX = 1024;
+const anonIdCache = new Map<string, string>();
 export async function anonIdFor(pubKeyB64: string): Promise<string> {
-  if (CACHE[pubKeyB64]) return CACHE[pubKeyB64];
+  const cached = anonIdCache.get(pubKeyB64);
+  if (cached) return cached;
   const hash = await sha256(base64UrlToBytes(pubKeyB64));
   const b32 = bytesToBase32(hash).slice(0, 8);
   const formatted = `${b32.slice(0, 4)}-${b32.slice(4, 8)}`.toUpperCase();
-  CACHE[pubKeyB64] = formatted;
+  if (anonIdCache.size >= ANON_ID_CACHE_MAX) {
+    // Drop the oldest entry (Map preserves insertion order).
+    const firstKey = anonIdCache.keys().next().value;
+    if (firstKey !== undefined) anonIdCache.delete(firstKey);
+  }
+  anonIdCache.set(pubKeyB64, formatted);
   return formatted;
 }
 
@@ -156,8 +167,9 @@ export function randomUUID(): string {
   // RFC4122 v4 fallback
   const b = new Uint8Array(16);
   crypto.getRandomValues(b);
-  b[6] = (b[6] & 0x0f) | 0x40;
-  b[8] = (b[8] & 0x3f) | 0x80;
+  // Bumping the version (4) and variant bits per RFC 4122 §4.4.
+  b[6] = ((b[6] ?? 0) & 0x0f) | 0x40;
+  b[8] = ((b[8] ?? 0) & 0x3f) | 0x80;
   const hex = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
@@ -180,7 +192,6 @@ export async function importEcdhPub(raw: Uint8Array): Promise<CryptoKey> {
 export async function deriveSharedAesKey(
   privKey: CryptoKey,
   otherPubKey: CryptoKey,
-  _salt: Uint8Array,
 ): Promise<CryptoKey> {
   return crypto.subtle.deriveKey(
     { name: 'ECDH', public: otherPubKey },
@@ -190,7 +201,6 @@ export async function deriveSharedAesKey(
     ['encrypt', 'decrypt'],
   );
 }
-void deriveSharedAesKey;
 
 // AES-GCM helpers for identity transfer
 export async function aesEncrypt(

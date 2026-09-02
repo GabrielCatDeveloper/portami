@@ -31,6 +31,7 @@ describe('SyntheticGpsSource', () => {
     const seen: GeolocationPosition[] = [];
     source.watchPosition((p) => seen.push(p));
     const p = seen[0];
+    if (!p) throw new Error('expected a sample');
     expect(typeof p.timestamp).toBe('number');
     expect(typeof p.coords.latitude).toBe('number');
     expect(typeof p.coords.longitude).toBe('number');
@@ -43,9 +44,11 @@ describe('SyntheticGpsSource', () => {
   it('moves the position forward with the configured bearing', () => {
     const seen: GeolocationPosition[] = [];
     source.watchPosition((p) => seen.push(p));
-    const start = seen[0].coords;
+    const start = seen[0]?.coords;
+    if (!start) throw new Error('expected a starting sample');
     vi.advanceTimersByTime(1000);
-    const after1s = seen[1].coords;
+    const after1s = seen[1]?.coords;
+    if (!after1s) throw new Error('expected a follow-up sample');
     // At 1.3 m/s for 1s, we move ~1.3 m — but pauses may keep us still,
     // so just verify we end up NOT identical to start (or equal, if a pause
     // happened to fire). Position should remain within ~5 km of start.

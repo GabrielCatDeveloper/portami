@@ -1,11 +1,13 @@
+import { useTranslation } from 'react-i18next';
 import { useServerHealth } from '@/state/health';
 import { Wifi, WifiOff, AlertTriangle, Clock } from '@/components/icons';
 
 /**
  * Small badge that shows the current server status.
- * Shown at the top of most pages. Click for details (not implemented).
+ * Shown at the top of most pages.
  */
 export function ServerStatusBadge() {
+  const { t } = useTranslation();
   const health = useServerHealth();
   const { status, routes } = health;
 
@@ -22,10 +24,10 @@ export function ServerStatusBadge() {
           borderRadius: 'var(--r-pill)',
           width: 'fit-content',
         }}
-        aria-label={`Servidor: conectado (${routes} rutas)`}
+        aria-label={t('server.onlineAria', { n: routes })}
       >
         <Wifi size={14} />
-        <span>En línea · {routes} rutas</span>
+        <span>{t('server.online', { n: routes })}</span>
       </div>
     );
   }
@@ -45,7 +47,7 @@ export function ServerStatusBadge() {
         }}
       >
         <Clock size={14} />
-        <span>Servidor saturado — reintentando…</span>
+        <span>{t('server.saturated')}</span>
       </div>
     );
   }
@@ -65,7 +67,7 @@ export function ServerStatusBadge() {
         }}
       >
         <AlertTriangle size={14} />
-        <span>Servidor caído — reintentando unos minutos…</span>
+        <span>{t('server.stopped')}</span>
       </div>
     );
   }
@@ -85,7 +87,7 @@ export function ServerStatusBadge() {
       }}
     >
       <WifiOff size={14} />
-      <span>Modo offline — los viajes solo se guardan en este dispositivo</span>
+      <span>{t('server.offline')}</span>
     </div>
   );
 }

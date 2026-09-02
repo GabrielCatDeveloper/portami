@@ -1,6 +1,7 @@
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { visualizer } from 'rollup-plugin-visualizer';
 import path from 'node:path';
 
 // Base path for static hosting.
@@ -29,6 +30,17 @@ export default defineConfig({
   plugins: [
     react(),
     ghPagesFallback(),
+    // Bundle analyzer — only emits dist/stats.html when invoked
+    // with `npm run analyze`. The `analyze` script sets
+    // ANALYZE=1 before the build starts.
+    ...(process.env.ANALYZE === '1'
+      ? [visualizer({
+          filename: 'dist/stats.html',
+          gzipSize: true,
+          brotliSize: true,
+          template: 'treemap',
+        })]
+      : []),
     VitePWA({
       registerType: 'autoUpdate',
       strategies: 'injectManifest',
@@ -73,10 +85,52 @@ export default defineConfig({
   build: {
     target: 'es2022',
     sourcemap: true,
+    rollupOptions: {
+      output: {
+        // Manual chunking. We split the bundle into stable groups so:
+        //   - Browser caches stay valid across deploys when only `app`
+        //     changes (most common case).
+        //   - Heavy libs (leaflet, qrcode) load in parallel with app
+        //     code rather than blocking first paint.
+        //   - React stays its own chunk because it's the version we
+        //     change least often.
+        manualChunks: {
+          'react-vendor': [
+            'react',
+            'react-dom',
+            'react-dom/client',
+            'react-router-dom',
+            'react-i18next',
+            'scheduler',
+          ],
+          leaflet: [
+            'leaflet',
+            'react-leaflet',
+          ],
+          qrcode: [
+            'qrcode',
+          ],
+          vendor: [
+            'zustand',
+            'idb',
+            'workbox-core',
+            'workbox-precaching',
+            'workbox-routing',
+            'workbox-strategies',
+            'workbox-expiration',
+          ],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 600,
   },
   test: {
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./tests/setup.ts'],
+    // Playwright owns `tests/e2e/*`; vitest must not try to collect
+    // those files (they use `test.describe` from @playwright/test
+    // which is incompatible with vitest's globals).
+    exclude: ['**/node_modules/**', '**/dist/**', 'tests/e2e/**'],
   },
 });

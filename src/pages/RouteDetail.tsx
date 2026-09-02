@@ -7,9 +7,10 @@ import { fetchActiveBusesOnRoute, type ActiveBus } from '@/api/activeBuses';
 import { listIncidents, reportIncident, resolveIncident } from '@/api/incidents';
 import { useTripStore } from '@/state/trip';
 import { useIdentityStore } from '@/state/identity';
-import type { Route, RouteEditProposal, Incident, IncidentKind } from '@/api/types';
+import type { Route, RouteEditProposal, Incident, IncidentKind, ProposalStatus } from '@/api/types';
 import { LeafletMap, vehicleEmoji, vehicleColor } from '@/components/LeafletMap';
 import { StopRequestSection } from '@/components/StopRequestSection';
+import { useInterval } from '@/hooks/useInterval';
 import { Navigation, ChevronLeft, Edit, Map as MapIcon, Check, X, AlertTriangle, Bus, Clock, Plus } from '@/components/icons';
 import { formatDistance, polylineLength } from '@/geo/distance';
 import { estimateStopEtas, formatEta } from '@/geo/eta';
@@ -128,26 +129,29 @@ export default function RouteDetailPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  // Poll active buses on this route every 15s while viewing
+  // Poll active buses on this route every 15s while viewing.
+  // The `cancelled` ref guards the in-flight callbacks against
+  // setting state after the page unmounts (e.g. user navigates
+  // away mid-fetch).
+  const pollCancelled = useRef(false);
   useEffect(() => {
-    if (!id) return;
-    let cancelled = false;
-    const tick = () => {
-      if (cancelled) return;
-      fetchActiveBusesOnRoute(id)
-        .then((b) => !cancelled && setActiveBuses(b))
-        .catch(() => {});
-      listIncidents(id)
-        .then((i) => !cancelled && setIncidents(i))
-        .catch(() => {});
-    };
-    tick();
-    const handle = window.setInterval(tick, 15_000);
+    pollCancelled.current = false;
     return () => {
-      cancelled = true;
-      window.clearInterval(handle);
+      pollCancelled.current = true;
     };
   }, [id]);
+  useInterval(
+    () => {
+      if (!id) return;
+      fetchActiveBusesOnRoute(id)
+        .then((b) => !pollCancelled.current && setActiveBuses(b))
+        .catch(() => {});
+      listIncidents(id)
+        .then((i) => !pollCancelled.current && setIncidents(i))
+        .catch(() => {});
+    },
+    15_000,
+  );
 
   // Notify the author when their proposal status changes (approved/rejected)
   useEffect(() => {
@@ -186,7 +190,22 @@ export default function RouteDetailPage() {
     try {
       const res = await voteOnProposal(proposalId, kind);
       setPending((cur) =>
-        cur.map((p) => (p.id === proposalId ? { ...p, approvals: res.approvals, rejections: res.rejections, status: res.status as any } : p)),
+        cur.map((p) =>
+          p.id === proposalId
+            ? {
+                ...p,
+                approvals: res.approvals,
+                rejections: res.rejections,
+                // Server returns `status` as `string` to stay loosely
+                // typed over the wire; we narrow it to the known
+                // ProposalStatus set and fall back to the previous
+                // value if the server sent an unknown one.
+                status: (['pending', 'approved', 'rejected', 'expired'] as const).includes(res.status as never)
+                  ? (res.status as ProposalStatus)
+                  : p.status,
+              }
+            : p,
+        ),
       );
     } catch {
       // ignore
@@ -409,7 +428,12 @@ export default function RouteDetailPage() {
               {t('routes.shareTrip')}
             </button>
 
-            <button type="button" className="btn btn-block mb-4" onClick={() => alert('Próximamente: editor de propuestas')}>
+            <button
+              type="button"
+              className="btn btn-block mb-4"
+              disabled
+              title={t('routes.proposeChangeSoon', { defaultValue: 'Próximamente' })}
+            >
               <Edit size={20} />
               {t('routes.proposeChange')}
             </button>

@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Bus, Map as MapIcon, Plus, Check, AlertTriangle, ChevronRight, Navigation } from '@/components/icons';
 import { apiFetch } from '@/api/client';
 import type { Route, GPSSample } from '@/api/types';
 import { geoWatcher } from '@/geo/watcher';
 import { matchRoutesByProximity, type RouteMatch } from '@/geo/matchRoutes';
+import { useTripStore } from '@/state/trip';
 
 type Phase = 'idle' | 'locating' | 'searching' | 'suggestions' | 'starting' | 'error';
 
 export default function BoardPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -29,8 +32,8 @@ export default function BoardPage() {
     if (perm !== 'granted') {
       setError(
         perm === 'denied'
-          ? 'Permiso de GPS denegado. Actívalo en los ajustes del navegador.'
-          : 'Necesitamos acceso al GPS para saber qué ruta te puede corresponder.',
+          ? t('board.permissionDenied')
+          : t('board.gpsNeeded'),
       );
       setPhase('error');
       return;
@@ -65,7 +68,7 @@ export default function BoardPage() {
       setMatches(m);
       setPhase('suggestions');
     } catch (e) {
-      setError(`Error buscando rutas: ${e}`);
+      setError(t('board.errorStarting', { err: String(e) }));
       setPhase('error');
     }
   };
@@ -82,17 +85,15 @@ export default function BoardPage() {
     setPhase('starting');
     try {
       // Reuse the trip store to start the trip — it knows how to POST /trips/start
-      const tripStore = (await import('@/state/trip')).useTripStore.getState();
-      await tripStore.startTrip(route);
+      await useTripStore.getState().startTrip(route);
       navigate('/trip');
     } catch (e) {
-      setError(`Error iniciando el viaje: ${e}`);
+      setError(t('board.errorStarting', { err: String(e) }));
       setPhase('error');
     }
   };
 
   const onRecordNew = () => {
-    // User wants to record a new route — go to Record page
     navigate('/record');
   };
 
@@ -100,16 +101,16 @@ export default function BoardPage() {
     return (
       <div className="page">
         <header className="page-header">
-          <h1>Subir a un bus/tren</h1>
+          <h1>{t('board.header')}</h1>
         </header>
         <div className="empty">
           <div className="empty-illustration" style={{ background: 'var(--danger)', color: 'white' }}>
             <AlertTriangle size={40} />
           </div>
-          <h3>No hemos podido iniciar</h3>
+          <h3>{t('board.errorTitle')}</h3>
           <p>{error}</p>
           <button type="button" className="btn btn-primary btn-lg" onClick={beginBoarding}>
-            Reintentar
+            {t('common.retry')}
           </button>
         </div>
       </div>
@@ -119,7 +120,7 @@ export default function BoardPage() {
   return (
     <div className="page">
       <header className="page-header">
-        <h1>Subir a un bus/tren</h1>
+        <h1>{t('board.header')}</h1>
       </header>
 
       {(phase === 'idle' || phase === 'locating') && (
@@ -127,10 +128,8 @@ export default function BoardPage() {
           <div className="empty-illustration">
             <Navigation size={40} />
           </div>
-          <h3>Detectando tu ubicación…</h3>
-          <p className="text-sm text-muted">
-            Necesitamos tu GPS para buscar rutas que pasen cerca.
-          </p>
+          <h3>{t('board.locatingTitle')}</h3>
+          <p className="text-sm text-muted">{t('board.locatingHint')}</p>
         </div>
       )}
 
@@ -139,7 +138,7 @@ export default function BoardPage() {
           <div className="empty-illustration">
             <MapIcon size={40} />
           </div>
-          <h3>Buscando rutas cercanas…</h3>
+          <h3>{t('board.searchingTitle')}</h3>
           <div className="skeleton" style={{ height: 60, marginTop: 16 }} />
           <div className="skeleton" style={{ height: 60, marginTop: 12 }} />
         </div>
@@ -149,7 +148,7 @@ export default function BoardPage() {
         <>
           <div className="card mb-3" style={{ background: 'var(--brand-50)' }}>
             <div className="text-xs text-muted" style={{ textTransform: 'uppercase', letterSpacing: 1 }}>
-              Detectado cerca de
+              {t('board.nearbyLabel')}
             </div>
             <div className="text-sm" style={{ fontFamily: 'var(--font-mono)', marginTop: 4 }}>
               {pos?.lat.toFixed(5)}, {pos?.lng.toFixed(5)}
@@ -159,20 +158,16 @@ export default function BoardPage() {
           {matches.length === 0 ? (
             <div className="card mb-3">
               <div className="card-header">
-                <div className="card-title">No hay rutas que coincidan</div>
+                <div className="card-title">{t('board.noMatchTitle')}</div>
               </div>
-              <p className="text-sm text-muted mb-3">
-                No hemos encontrado rutas registradas a menos de 3 km. ¿Es un trayecto nuevo?
-              </p>
+              <p className="text-sm text-muted mb-3">{t('board.noMatchHint')}</p>
               <button type="button" className="btn btn-primary btn-block" onClick={onRecordNew}>
-                <Plus size={18} /> Grabar esta ruta
+                <Plus size={18} /> {t('board.recordThisRoute')}
               </button>
             </div>
           ) : (
             <>
-              <p className="text-sm text-muted mb-3">
-                ¿Es alguna de estas rutas? Cuanto más cerca, más probable.
-              </p>
+              <p className="text-sm text-muted mb-3">{t('board.suggestionPrompt')}</p>
 
               <div className="list">
                 {matches.map((m) => (
@@ -189,12 +184,10 @@ export default function BoardPage() {
                     <div className="list-item-body">
                       <div className="list-item-title">{m.route.name}</div>
                       <div className="list-item-sub">
-                        {m.distanceM < 100
-                          ? `a ${Math.round(m.distanceM)} m`
-                          : m.distanceM < 1000
-                            ? `a ${Math.round(m.distanceM)} m`
-                            : `a ${(m.distanceM / 1000).toFixed(1)} km`}{' '}
-                        · {m.route.stops.length} paradas
+                        {m.distanceM < 1000
+                          ? t('board.distMeters', { n: Math.round(m.distanceM) })
+                          : t('board.distKm', { km: (m.distanceM / 1000).toFixed(1) })}{' '}
+                        · {t('board.stops', { n: m.route.stops.length })}
                       </div>
                     </div>
                     <ChevronRight size={20} className="text-muted" />
@@ -204,7 +197,7 @@ export default function BoardPage() {
 
               <div className="mt-3">
                 <button type="button" className="btn btn-block" onClick={onRecordNew}>
-                  <Plus size={18} /> Ninguna coincide — grabar nueva
+                  <Plus size={18} /> {t('board.noMatchNew')}
                 </button>
               </div>
             </>
@@ -216,7 +209,7 @@ export default function BoardPage() {
               className="btn btn-ghost btn-sm btn-block"
               onClick={beginBoarding}
             >
-              Buscar de nuevo
+              {t('board.searchAgain')}
             </button>
           </div>
         </>
@@ -227,8 +220,8 @@ export default function BoardPage() {
           <div className="empty-illustration" style={{ background: 'var(--brand-600)', color: 'white' }}>
             <Check size={40} />
           </div>
-          <h3>Subiendo a {selected.name}</h3>
-          <p className="text-sm text-muted">Iniciando el viaje…</p>
+          <h3>{t('board.startingTitle', { name: selected.name })}</h3>
+          <p className="text-sm text-muted">{t('board.startingHint')}</p>
         </div>
       )}
     </div>

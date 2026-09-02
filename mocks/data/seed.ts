@@ -123,5 +123,6 @@ export const seedRoutes: Route[] = [
 export const activeBuses = new Map<string, { lat: number; lng: number; etaNextStop: number }>();
 for (const r of seedRoutes) {
   const mid = r.polyline[Math.floor(r.polyline.length / 2)];
+  if (!mid) continue;
   activeBuses.set(r.id, { lat: mid[0], lng: mid[1], etaNextStop: 8 * 60_000 });
 }

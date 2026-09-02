@@ -4,8 +4,11 @@ import { useNavigate } from 'react-router-dom';
 import { SUPPORTED_LANGUAGES, LANGUAGE_LABELS } from '@/i18n';
 import { useIdentityStore } from '@/state/identity';
 import { useTestingStore } from '@/state/testing';
-import { Key, Copy, Download, Upload, AlertTriangle, ChevronDown, Sync as SyncIcon, Trash, Beaker } from '@/components/icons';
-import { getDB } from '@/storage/db';
+import { useCollaborateStore } from '@/state/collaborate';
+import { useSyncStore } from '@/sync';
+import { Key, Copy, Download, Upload, AlertTriangle, ChevronDown, Sync as SyncIcon, Trash, Beaker, Info, Share } from '@/components/icons';
+import { PassphrasePrompt } from '@/components/PassphrasePrompt';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import type { PairedDevice } from '@/api/types';
 import {
   exportMyRoutesAsGeoJSON,
@@ -20,6 +23,12 @@ import {
   pickBackupFile,
 } from '@/io/identityBackup';
 
+type PromptMode =
+  | { kind: 'export' }
+  | { kind: 'import'; file: Awaited<ReturnType<typeof pickBackupFile>> }
+  | { kind: 'regenerate' }
+  | { kind: 'revoke'; device: PairedDevice };
+
 export default function SettingsPage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -28,6 +37,8 @@ export default function SettingsPage() {
   const regenerate = useIdentityStore((s) => s.regenerate);
   const importFromJwk = useIdentityStore((s) => s.importFromJwk);
   const testing = useTestingStore();
+  const collaborate = useCollaborateStore();
+  const sync = useSyncStore();
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<string | null>(null);
@@ -35,12 +46,12 @@ export default function SettingsPage() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showDanger, setShowDanger] = useState(false);
   const [pairedDevices, setPairedDevices] = useState<PairedDevice[]>([]);
+  const [prompt, setPrompt] = useState<PromptMode | null>(null);
 
   // Load paired devices for the Sync card
   const reloadDevices = async () => {
     try {
-      const db = await getDB();
-      const list = await db.getAll('pairedDevices');
+      const list = await sync.loadPairedDevices();
       setPairedDevices(list);
     } catch {
       setPairedDevices([]);
@@ -48,14 +59,20 @@ export default function SettingsPage() {
   };
   useEffect(() => {
     void reloadDevices();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sync]);
 
   if (!identity) return null;
 
   const copyPub = async () => {
-    await navigator.clipboard.writeText(identity.pubKey);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    try {
+      await navigator.clipboard.writeText(identity.pubKey);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard API unavailable (insecure context or denied permission);
+      // silently ignore — the pubKey is still visible in the advanced panel.
+    }
   };
 
   const flash = (msg: string, isError = false) => {
@@ -68,53 +85,50 @@ export default function SettingsPage() {
   };
 
   // ---- Identity backup / restore ----
-  const onExportIdentity = async () => {
-    const passphrase = window.prompt(
-      'Elige una contraseña para proteger el archivo (mínimo 8 caracteres). ' +
-        'La necesitarás para volver a importarla. NO la pierdas.',
-    );
-    if (!passphrase) return;
-    if (passphrase.length < 8) {
-      flash('La contraseña debe tener al menos 8 caracteres', true);
-      return;
-    }
-    const confirm = window.prompt('Repite la contraseña para confirmar:');
-    if (confirm !== passphrase) {
-      flash('Las contraseñas no coinciden', true);
-      return;
-    }
-    setBusy('export-id');
-    try {
-      const backup = await exportIdentityBackup({
-        pubKey: identity.pubKey,
-        anonId: anonId ?? '',
-        privKeyJwk: identity.privKeyJwk,
-        passphrase,
-      });
-      downloadBackup(backup, anonId ?? 'me');
-      flash('Identidad exportada. Guarda el archivo en un lugar seguro.');
-      // Clear passphrase from memory as soon as possible
-    } catch (e) {
-      flash(`Error: ${e instanceof Error ? e.message : e}`, true);
-    } finally {
-      setBusy(null);
-    }
-  };
+  const onExportIdentity = () => setPrompt({ kind: 'export' });
 
   const onImportIdentity = async () => {
     const file = await pickBackupFile();
     if (!file) return;
-    const passphrase = window.prompt('Introduce la contraseña del archivo de backup:');
-    if (!passphrase) return;
-    setBusy('import-id');
-    try {
-      const jwk = await importIdentityBackup({ backup: file, passphrase });
-      await importFromJwk(jwk, file.pubKey);
-      flash(`Identidad importada correctamente como #${file.anonId}`);
-    } catch (e) {
-      flash(`Error: ${e instanceof Error ? e.message : e}`, true);
-    } finally {
-      setBusy(null);
+    setPrompt({ kind: 'import', file });
+  };
+
+  const handlePassphraseSubmit = async (passphrase: string) => {
+    const mode = prompt;
+    setPrompt(null);
+    if (!mode || !identity) return;
+
+    if (mode.kind === 'export') {
+      setBusy('export-id');
+      try {
+        const backup = await exportIdentityBackup({
+          pubKey: identity.pubKey,
+          anonId: anonId ?? '',
+          privKeyJwk: identity.privKeyJwk,
+          passphrase,
+        });
+        downloadBackup(backup, anonId ?? 'me');
+        flash('Identidad exportada. Guarda el archivo en un lugar seguro.');
+      } catch (e) {
+        flash(`Error: ${e instanceof Error ? e.message : e}`, true);
+      } finally {
+        setBusy(null);
+      }
+      return;
+    }
+
+    if (mode.kind === 'import') {
+      if (!mode.file) return;
+      setBusy('import-id');
+      try {
+        const jwk = await importIdentityBackup({ backup: mode.file, passphrase });
+        await importFromJwk(jwk);
+        flash(`Identidad importada correctamente como #${mode.file.anonId}`);
+      } catch (e) {
+        flash(`Error: ${e instanceof Error ? e.message : e}`, true);
+      } finally {
+        setBusy(null);
+      }
     }
   };
 
@@ -168,6 +182,7 @@ export default function SettingsPage() {
             <button
               key={lng}
               type="button"
+              data-testid={`lang-${lng}`}
               className={`chip ${i18n.language.startsWith(lng) ? 'active' : ''}`}
               onClick={() => {
                 void i18n.changeLanguage(lng);
@@ -200,7 +215,7 @@ export default function SettingsPage() {
           }}
         >
           <div className="text-xs text-muted" style={{ textTransform: 'uppercase', letterSpacing: 1 }}>
-            Tu ID anónimo
+            {t('settings.anonId')}
           </div>
           <div
             style={{
@@ -318,11 +333,7 @@ export default function SettingsPage() {
             <button
               type="button"
               className="btn btn-danger btn-block"
-              onClick={async () => {
-                if (confirm('¿Seguro que quieres regenerar tu identidad? No se puede deshacer.')) {
-                  await regenerate();
-                }
-              }}
+              onClick={() => setPrompt({ kind: 'regenerate' })}
             >
               <AlertTriangle size={16} /> Regenerar identidad
             </button>
@@ -391,12 +402,7 @@ export default function SettingsPage() {
                   type="button"
                   className="btn btn-sm btn-ghost"
                   aria-label="Revocar"
-                  onClick={async () => {
-                    if (!confirm(`¿Revocar "${d.alias}"?`)) return;
-                    const db = await getDB();
-                    await db.delete('pairedDevices', d.deviceId);
-                    void reloadDevices();
-                  }}
+                  onClick={() => setPrompt({ kind: 'revoke', device: d })}
                 >
                   <Trash size={16} />
                 </button>
@@ -411,6 +417,46 @@ export default function SettingsPage() {
         <button type="button" className="btn btn-block mt-2" onClick={() => navigate('/following')}>
           <ChevronDown size={18} style={{ transform: 'rotate(-90deg)' }} /> Ver viajes compartidos
         </button>
+      </section>
+
+      {/* Collaborate mode: opt-in to share the GPS with our
+          server. OFF by default. Only the watcher posts to the
+          server when this is on; P2P friend sharing is independent
+          and has its own toggle. This is the architectural rule
+          documented in ROADMAP_FUTURE.md → "Regla de oro de
+          privacidad". */}
+      <section className="card mb-4" data-testid="settings-collaborate">
+        <div className="card-header">
+          <div className="list-item-icon" style={{ background: 'var(--brand-700)', color: 'white' }}>
+            <Share size={20} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div className="card-title">{t('collaborate.title')}</div>
+            <div className="card-subtitle">{t('collaborate.subtitle')}</div>
+          </div>
+        </div>
+        <label className="row gap-2" style={{ alignItems: 'center', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            data-testid="collaborate-toggle"
+            checked={collaborate.enabled}
+            onChange={(e) => collaborate.setEnabled(e.target.checked)}
+          />
+          <span style={{ fontWeight: 600 }}>{t('collaborate.enable')}</span>
+        </label>
+        <p className="text-xs text-muted mt-2 mb-0" style={{ lineHeight: 1.4 }}>
+          {t('collaborate.description')}
+        </p>
+        <div
+          className="banner banner-info mt-3 mb-0 text-sm"
+          style={{ alignItems: 'flex-start' }}
+        >
+          <Info size={16} />
+          <span>
+            <strong>{t('collaborate.directOnlyWithFriends')}</strong>{' '}
+            {t('collaborate.notTheServer')}
+          </span>
+        </div>
       </section>
 
       {/* Testing mode */}
@@ -505,6 +551,55 @@ export default function SettingsPage() {
           {t('settings.openSource')} ↗
         </a>
       </section>
+
+      {prompt?.kind === 'export' && (
+        <PassphrasePrompt
+          title="Exportar identidad"
+          description="Elige una contraseña para proteger el archivo (mínimo 8 caracteres). La necesitarás para volver a importarla. NO la pierdas."
+          confirm
+          onSubmit={handlePassphraseSubmit}
+          onCancel={() => setPrompt(null)}
+        />
+      )}
+
+      {prompt?.kind === 'import' && (
+        <PassphrasePrompt
+          title="Importar identidad"
+          description="Introduce la contraseña del archivo de backup."
+          onSubmit={handlePassphraseSubmit}
+          onCancel={() => setPrompt(null)}
+        />
+      )}
+
+      {prompt?.kind === 'regenerate' && (
+        <ConfirmDialog
+          title="¿Regenerar tu identidad?"
+          description="Tu anonId actual quedará invalidado. Perderás reputación y se desconectarán tus dispositivos emparejados. Esta acción no se puede deshacer."
+          confirmLabel="Sí, regenerar"
+          variant="danger"
+          onConfirm={async () => {
+            setPrompt(null);
+            await regenerate();
+            flash('Identidad regenerada.');
+          }}
+          onCancel={() => setPrompt(null)}
+        />
+      )}
+
+      {prompt?.kind === 'revoke' && (
+        <ConfirmDialog
+          title={`¿Revocar "${prompt.device.alias}"?`}
+          description="El dispositivo dejará de recibir tus viajes. La conexión WebRTC activa se cerrará."
+          confirmLabel="Sí, revocar"
+          variant="danger"
+          onConfirm={async () => {
+            setPrompt(null);
+            await sync.revokeDevice(prompt.device.deviceId);
+            void reloadDevices();
+          }}
+          onCancel={() => setPrompt(null)}
+        />
+      )}
     </div>
   );
 }

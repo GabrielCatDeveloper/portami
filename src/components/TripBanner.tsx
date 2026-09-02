@@ -48,7 +48,7 @@ export function TripBanner({ onEndClick }: Props) {
         className="btn btn-sm"
         onClick={(e) => {
           e.stopPropagation();
-          if (confirm(t('trip.endConfirm'))) void endTrip('manual');
+          void endTrip('manual');
         }}
         style={{ background: 'white', color: 'var(--brand-800)' }}
       >

@@ -71,7 +71,7 @@ interface PortamiDB extends DBSchema {
   // Import history
   importHistory: {
     key: number; // autoincrement
-    value: { id?: number; ts: number; file: string; imported: number; skipped: number; replaced: number; merged: number };
+    value: { id?: number; ts: number; ownerAnonId: string; imported: number; skipped: number; replaced: number; merged: number };
     indexes: { 'by-ts': number };
   };
 
@@ -121,7 +121,7 @@ let dbPromise: Promise<IDBPDatabase<PortamiDB>> | null = null;
 export function getDB(): Promise<IDBPDatabase<PortamiDB>> {
   if (!dbPromise) {
     dbPromise = openDB<PortamiDB>(DB_NAME, DB_VERSION, {
-      upgrade(db, oldVersion, _newVersion, tx) {
+      upgrade(db, oldVersion, _newVersion, _tx) {
         // The `upgrade` callback fires for every version transition
         // (oldVersion → newVersion). We branch on the OLD version so
         // each migration step runs exactly once.
@@ -211,10 +211,10 @@ export function getDB(): Promise<IDBPDatabase<PortamiDB>> {
           }
         }
 
-        // Reference `tx` to silence "declared but never read" warnings.
-        // Future migrations will use it to read existing data.
-        void tx;
-      },
+// `tx` is provided by idb but unused — migrations are pure-schema so
+        // far. The parameter is kept in the signature for future
+        // data-migration steps.
+    },
     });
   }
   return dbPromise;

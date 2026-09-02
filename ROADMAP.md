@@ -2,7 +2,13 @@
 
 ## Estado actual (noviembre 2026)
 
-App PWA desplegada en GitHub Pages. El server está en `https://portami-server-myqe6vtk46ha.gabrielcatdev.deno.net/`.
+App PWA desplegada en GitHub Pages. El server vive en un repo hermano
+`../portami-server` (Deno Deploy). Su URL canónica de producción está
+en `.env.example` y en `.github/workflows/prod.yml` (variable de
+entorno `VITE_API_BASE`); si el server se redeploya bajo otro
+hostname, hay que actualizar **esos dos sitios** y este roadmap
+queda obsoleto en la línea siguiente. Última URL conocida:
+`https://portami-server-6mv9bn5jhvvb.gabrielcatdev.deno.net/`.
 
 - Idioma: es / ca / en
 - Identidad anónima (Ed25519), backup cifrado con passphrase
