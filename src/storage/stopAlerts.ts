@@ -80,3 +80,13 @@ export async function resetTriggered(routeId: string): Promise<void> {
   }
   await tx.done;
 }
+
+export async function listAllAlerts(): Promise<StopAlert[]> {
+  const db = await getDB();
+  return db.getAll('stopAlerts');
+}
+
+export async function clearAllAlerts(): Promise<void> {
+  const db = await getDB();
+  await db.clear('stopAlerts');
+}

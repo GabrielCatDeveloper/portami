@@ -1,3 +1,15 @@
+// Re-export the trip-share controller so WebMCP tools (and the
+// /trip page) can call startSharing/stopSharing imperatively. The
+// controller owns the always-on background loops; the page hook
+// `useTripShareBridge` is a thin adapter that publishes the active
+// trip context into it.
+export {
+  tripShareController,
+  recipientTimeoutOutcome,
+  initialRecipientStatus,
+  type ActiveTripContext,
+} from './tripShareController';
+
 // ============================================================
 // Pairing + sync orchestrator (multi-peer).
 //

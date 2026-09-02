@@ -8,6 +8,7 @@ import { startMockServer } from '../mocks/browser';
 import { startServerHealthOnce } from '@/state/health';
 import { getApiBase } from '@/api/client';
 import { useTestingStore } from '@/state/testing';
+import { initWebMcp, registerAllTools } from '@/webmcp';
 import './i18n';
 
 // Must match the `base` config in vite.config.ts. Read from the same env
@@ -53,6 +54,19 @@ async function bootstrap() {
   if ('serviceWorker' in navigator && import.meta.env.PROD) {
     const { registerSW } = await import('virtual:pwa-register');
     registerSW({ immediate: true });
+  }
+
+  // Initialise WebMCP (`document.modelContext`) and register every
+  // portami tool with it. Best-effort: a failure here never blocks
+  // the UI from booting. The polyfill installed by `@mcp-b/global`
+  // is what provides the API on browsers without native support.
+  const webmcpReady = await initWebMcp();
+  if (webmcpReady) {
+    try {
+      await registerAllTools();
+    } catch (err) {
+      console.warn('[WebMCP] tool registration failed:', err);
+    }
   }
 }
 

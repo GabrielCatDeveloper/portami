@@ -17,6 +17,7 @@ PWA anónima y colaborativa para rastrear buses y trens en tiempo real.
 - **Import/Export GeoJSON**: respalda tus rutas con un archivo GeoJSON firmado.
 - **Multilenguaje**: Español, Català, English.
 - **Offline-first**: rutas favoritas, identidad y viaje activo disponibles sin red.
+- **WebMCP / Model Context Protocol**: la app expone **70 tools** (`document.modelContext.registerTool`) que cubren identidad, rutas, propuestas, viajes, compartición P2P, pairing, journey planning, incidents, stop alerts, settings, GPS, import/export, bus reports, rescue-me y server health. Compatible con Claude, ChatGPT, Gemini, Cursor y cualquier agente WebMCP-aware. Ver [WEBMCP.md](./WEBMCP.md).
 
 ## Stack
 
@@ -119,6 +120,25 @@ El `tripShareId` se genera al iniciar el viaje y correlaciona todos los mensajes
 - Identidad = Ed25519 keypair generado en el dispositivo; nunca abandona el dispositivo salvo que el usuario lo exporte explícitamente o lo transfiera vía WebRTC.
 - Ubicación solo se comparte mientras hay un viaje activo (botón "Salir del bus" siempre visible).
 - El servidor (futuro) solo recibe muestras GPS firmadas con la pubKey del usuario y los datos de la ruta.
+
+## WebMCP (Model Context Protocol)
+
+La PWA expone **70 tools** a través del estándar [WebMCP](https://webmachinelearning.github.io/webmcp/):
+`document.modelContext.registerTool(...)`. Un agente conectado
+(Claude, ChatGPT, Gemini, Cursor…) puede iniciar viajes,
+compartirlos con amigos emparejados, votar propuestas, reportar
+incidencias, mandar un `rescue_me`, importar/exportar GeoJSON, y
+mucho más — todo desde fuera de la UI.
+
+- Browser nativo (Chrome 146+): sin coste de bundle, la API ya está.
+- Otros navegadores: `@mcp-b/global` se carga dinámicamente como
+  polyfill (chunk separado, ~170 KB gzipped, solo cuando hace falta).
+- Activación: siempre activo tras `init()` de la identidad.
+- Tools de lectura marcados con `readOnlyHint: true`. Tools
+  destructivos (`reset_identity`, `regenerate_identity`, …) sin
+  marcar, para que el agente pida confirmación al usuario.
+
+Catálogo completo en [WEBMCP.md](./WEBMCP.md).
 
 ## Roadmap
 

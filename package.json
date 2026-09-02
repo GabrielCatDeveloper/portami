@@ -17,6 +17,8 @@
     "test:e2e:install": "playwright install --with-deps chromium"
   },
   "dependencies": {
+    "@mcp-b/global": "^5.1.0",
+    "@mcp-b/webmcp-types": "^5.1.0",
     "i18next": "^23.15.1",
     "i18next-browser-languagedetector": "^8.0.0",
     "idb": "^8.0.0",

@@ -2,6 +2,7 @@ import { useEffect, useState, lazy, Suspense } from 'react';
 import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useIdentityStore } from '@/state/identity';
+import { tripShareController } from '@/sync';
 import { Home as HomeIcon, Map, Record as RecordIcon, Settings as SettingsIcon } from '@/components/icons';
 import { TripBanner } from '@/components/TripBanner';
 import { useStorageJanitor } from '@/storage/useStorageJanitor';
@@ -58,6 +59,16 @@ export default function App() {
   // TTL cleanup for trip-share stores (Hito 7 — Fase 2). Runs on
   // mount and every 24 h. Safe to live alongside other effects.
   useStorageJanitor();
+
+  // Trip-share controller's background loops (incoming-message
+  // listener, location broadcaster, peer-status retry subscriber).
+  // Must be installed once after identity init so WebMCP tools
+  // can call startSharing/stopSharing even when the user is not
+  // on the /trip page.
+  useEffect(() => {
+    if (!initialized) return;
+    return tripShareController.installBackgroundLoops();
+  }, [initialized]);
 
   // Listen for NAVIGATE messages from the Service Worker (triggered
   // when the user clicks a notification or its "view" action).
