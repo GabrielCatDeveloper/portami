@@ -10,13 +10,19 @@ import {
   PersonStanding,
   Bus,
   Play,
+  Pin,
+  Navigation,
+  X,
 } from '@/components/icons';
+import { PickLocationModal } from '@/components/PickLocationModal';
 import { formatDistance } from '@/geo/distance';
 import type { Journey, JourneyStep, LatLng, VehicleKind, Route } from '@/api/types';
 
 type Phase = 'idle' | 'locating' | 'planning' | 'results' | 'error';
 
 type VehicleFilterKey = VehicleKind | 'all';
+
+type PickerTarget = 'origin' | 'destination' | null;
 
 const VEHICLE_FILTER_KEYS: VehicleFilterKey[] = ['all', 'bus', 'train', 'tram', 'metro'];
 
@@ -30,8 +36,9 @@ export default function JourneyPage() {
   const [vehicleFilter, setVehicleFilter] = useState<VehicleFilterKey>('all');
   const [avoidRunning, setAvoidRunning] = useState(true);
   const [maxBoardings, setMaxBoardings] = useState(3);
+  const [picker, setPicker] = useState<PickerTarget>(null);
 
-  const locateMe = async () => {
+  const locateMe = async (target: 'origin' | 'destination') => {
     setPhase('locating');
     setError(null);
     try {
@@ -41,7 +48,9 @@ export default function JourneyPage() {
           timeout: 10_000,
         });
       });
-      setOrigin({ lat: sample.coords.latitude, lng: sample.coords.longitude });
+      const ll: LatLng = { lat: sample.coords.latitude, lng: sample.coords.longitude };
+      if (target === 'origin') setOrigin(ll);
+      else setDestination(ll);
     } catch {
       setError(t('journey.errorTitle'));
     } finally {
@@ -148,46 +157,30 @@ export default function JourneyPage() {
 
       <section className="card mb-3">
         <div className="card-title mb-2">{t('journey.origin')}</div>
-        <div className="row gap-2" style={{ alignItems: 'center' }}>
-          <button type="button" className="btn" onClick={() => void locateMe()}>
-            <MapIcon size={14} /> {t('journey.useMyLocation')}
-          </button>
-          <span className="text-xs text-muted">{t('journey.or')}</span>
-          <input
-            className="input"
-            placeholder={t('journey.latLngPlaceholder')}
-            onChange={(e) => {
-              const [lat, lng] = e.target.value.split(',').map((s) => parseFloat(s.trim()));
-              if (lat != null && lng != null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
-                setOrigin({ lat, lng });
-              }
-            }}
-          />
-        </div>
-        {origin && (
-          <div className="text-xs text-muted mt-2">
-            {t('journey.originCoords', { lat: origin.lat.toFixed(4), lng: origin.lng.toFixed(4) })}
-          </div>
-        )}
+        <LocationPickerRow
+          value={origin}
+          coordsLabel={t('journey.originCoords', {
+            lat: origin?.lat.toFixed(4) ?? t('journey.noCoords'),
+            lng: origin?.lng.toFixed(4) ?? t('journey.noCoords'),
+          })}
+          onUseLocation={() => void locateMe('origin')}
+          onPickOnMap={() => setPicker('origin')}
+          onClear={() => setOrigin(null)}
+        />
       </section>
 
       <section className="card mb-3">
         <div className="card-title mb-2">{t('journey.destination')}</div>
-        <input
-          className="input"
-          placeholder={t('journey.latLngPlaceholder')}
-          onChange={(e) => {
-            const [lat, lng] = e.target.value.split(',').map((s) => parseFloat(s.trim()));
-            if (lat != null && lng != null && !Number.isNaN(lat) && !Number.isNaN(lng)) {
-              setDestination({ lat, lng });
-            }
-          }}
+        <LocationPickerRow
+          value={destination}
+          coordsLabel={t('journey.destinationCoords', {
+            lat: destination?.lat.toFixed(4) ?? t('journey.noCoords'),
+            lng: destination?.lng.toFixed(4) ?? t('journey.noCoords'),
+          })}
+          onUseLocation={() => void locateMe('destination')}
+          onPickOnMap={() => setPicker('destination')}
+          onClear={() => setDestination(null)}
         />
-        {destination && (
-          <div className="text-xs text-muted mt-2">
-            {t('journey.destinationCoords', { lat: destination.lat.toFixed(4), lng: destination.lng.toFixed(4) })}
-          </div>
-        )}
       </section>
 
       <section className="card mb-3">
@@ -198,7 +191,7 @@ export default function JourneyPage() {
             // own i18n string. We deliberately don't hardcode English
             // fallbacks — the `t()` call below requires the keys to
             // exist in every locale.
-            const labelKey = k === 'all' ? 'home.exploreMap' : `vehicle.${k}`;
+            const labelKey = k === 'all' ? 'journey.allVehicles' : `vehicle.${k}`;
             const emoji = k === 'all' ? '🚌'
               : k === 'bus' ? '🚌'
               : k === 'train' ? '🚆'
@@ -247,6 +240,88 @@ export default function JourneyPage() {
       >
         <Check size={18} /> {t('journey.search')}
       </button>
+
+      {picker && (
+        <PickLocationModal
+          title={picker === 'origin' ? t('journey.origin') : t('journey.destination')}
+          hint={t('journey.pickOnMapHint')}
+          initialPosition={picker === 'origin' ? origin : destination}
+          onClose={() => setPicker(null)}
+          onConfirm={(p) => {
+            if (picker === 'origin') setOrigin(p);
+            else setDestination(p);
+            setPicker(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+type LocationPickerRowProps = {
+  value: LatLng | null;
+  coordsLabel: string;
+  onUseLocation: () => void;
+  onPickOnMap: () => void;
+  onClear: () => void;
+};
+
+function LocationPickerRow({
+  value,
+  coordsLabel,
+  onUseLocation,
+  onPickOnMap,
+  onClear,
+}: LocationPickerRowProps) {
+  const { t } = useTranslation();
+  return (
+    <div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 8,
+        }}
+      >
+        <button type="button" className="btn" onClick={onUseLocation}>
+          <Navigation size={16} /> {t('journey.useMyLocation')}
+        </button>
+        <button type="button" className="btn" onClick={onPickOnMap}>
+          <MapIcon size={16} /> {t('journey.pickOnMap')}
+        </button>
+      </div>
+
+      {value && (
+        <div
+          className="row gap-2 mt-2"
+          style={{
+            alignItems: 'center',
+            background: 'var(--bg-subtle)',
+            borderRadius: 'var(--r-md)',
+            padding: '8px 12px',
+          }}
+        >
+          <Pin size={14} className="text-muted" />
+          <span
+            style={{
+              flex: 1,
+              fontFamily: 'var(--font-mono)',
+              fontSize: 'var(--fs-sm)',
+            }}
+          >
+            {coordsLabel}
+          </span>
+          <button
+            type="button"
+            className="btn-icon btn btn-ghost"
+            onClick={onClear}
+            aria-label={t('journey.clearPoint')}
+            title={t('journey.clearPoint')}
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -368,7 +443,7 @@ function StepRow({ step }: { step: JourneyStep }) {
       <div style={{ flex: 1 }}>
         <div className="text-sm" style={{ fontWeight: 600 }}>{step.routeName}</div>
         <div className="text-xs text-muted">
-          {step.fromStopName} → {step.toStopName} · {formatDistance(step.rideDistanceM)}
+          {t('journey.stopTo', { from: step.fromStopName, to: step.toStopName })} · {formatDistance(step.rideDistanceM)}
         </div>
       </div>
     </li>

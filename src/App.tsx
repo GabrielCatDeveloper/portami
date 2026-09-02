@@ -9,13 +9,14 @@ import { useStorageJanitor } from '@/storage/useStorageJanitor';
 // Pages that don't pull in LeafletMap are loaded eagerly so the
 // initial bundle boots the Home → Settings paths immediately.
 // Pages that mount a LeafletMap (Explore / Record / Trip /
-// RouteDetail / Following / Connect / ConnectBack) are split out
-// into their own chunks; the shared `leaflet` vendor chunk is then
-// only fetched when the user actually navigates to a map view.
+// RouteDetail / Following / Connect / ConnectBack / Journey) are
+// split out into their own chunks; the shared `leaflet` vendor
+// chunk is then only fetched when the user actually navigates to
+// a map view. Journey is also lazy because its modal-picker
+// embeds a Leaflet instance.
 import HomePage from '@/pages/Home';
 import SettingsPage from '@/pages/Settings';
 import SyncPage from '@/pages/Sync';
-import JourneyPage from '@/pages/Journey';
 
 const BoardPage = lazy(() => import('@/pages/Board'));
 const ExplorePage = lazy(() => import('@/pages/Explore'));
@@ -25,6 +26,7 @@ const RecordPage = lazy(() => import('@/pages/Record'));
 const FollowingPage = lazy(() => import('@/pages/Following'));
 const ConnectPage = lazy(() => import('@/pages/Connect'));
 const ConnectBackPage = lazy(() => import('@/pages/ConnectBack'));
+const JourneyPage = lazy(() => import('@/pages/Journey'));
 
 /**
  * Tiny placeholder shown while a lazy chunk loads. We deliberately
