@@ -112,7 +112,10 @@ export default function ExplorePage() {
         activeBuses={busMarkers}
       />
 
-      {/* Top filter bar */}
+      {/* Top filter bar — z-index 1000 so it sits above Leaflet's
+          tile-pane (200), marker-pane (600), popup-pane (700) and
+          control-pane (800). Anything below 800 gets covered by the
+          map tiles, which was the original bug. */}
       <div
         style={{
           position: 'absolute',
@@ -122,7 +125,7 @@ export default function ExplorePage() {
           display: 'flex',
           flexDirection: 'column',
           gap: 8,
-          zIndex: 50,
+          zIndex: 1000,
         }}
       >
         {/* Vehicle filter chips */}
@@ -233,7 +236,7 @@ export default function ExplorePage() {
             background: 'var(--overlay-strong)',
             borderRadius: 'var(--r-md)',
             padding: '12px 14px',
-            zIndex: 50,
+            zIndex: 1000,
             display: 'flex',
             alignItems: 'center',
             gap: 8,
@@ -252,7 +255,7 @@ export default function ExplorePage() {
           background: 'var(--overlay-strong)',
           borderRadius: 'var(--r-md)',
           padding: '10px 14px',
-          zIndex: 50,
+          zIndex: 1000,
           textAlign: 'center',
           fontSize: 'var(--fs-sm)',
           color: 'var(--text-muted)',
