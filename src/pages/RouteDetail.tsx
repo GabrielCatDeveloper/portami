@@ -21,10 +21,12 @@ function IncidentForm({
   routeId,
   anonId,
   onCreated,
+  t,
 }: {
   routeId: string;
   anonId: string;
   onCreated: (inc: Incident) => void;
+  t: ReturnType<typeof useTranslation>[0];
 }) {
   const [kind, setKind] = useState<IncidentKind>('delay');
   const [reason, setReason] = useState('');
@@ -57,20 +59,20 @@ function IncidentForm({
             className={`chip ${kind === k ? 'active' : ''}`}
             onClick={() => setKind(k)}
           >
-            {k === 'cancellation' ? '🚫 Cancelado' :
-             k === 'delay' ? '⏱️ Retraso' :
-             k === 'diversion' ? '↪️ Desvío' : '⚠️ Otro'}
+            {k === 'cancellation' ? t('routeDetail.incidentCancellation') :
+             k === 'delay' ? t('routeDetail.incidentDelay') :
+             k === 'diversion' ? t('routeDetail.incidentDetour') : t('routeDetail.incidentOther')}
           </button>
         ))}
       </div>
       <input
         className="input"
-        placeholder="Describe brevemente la incidencia…"
+        placeholder={t('routeDetail.incidentPlaceholder')}
         value={reason}
         onChange={(e) => setReason(e.target.value)}
       />
       <div className="row gap-2" style={{ alignItems: 'center' }}>
-        <span className="text-sm text-muted">Duración estimada:</span>
+        <span className="text-sm text-muted">{t('routeDetail.incidentDuration')}</span>
         <input
           type="number"
           min={5}
@@ -80,7 +82,7 @@ function IncidentForm({
           style={{ width: 80 }}
           className="input"
         />
-        <span className="text-sm text-muted">min</span>
+        <span className="text-sm text-muted">{t('routeDetail.incidentDurationUnit')}</span>
         <button
           type="button"
           className="btn btn-primary btn-sm"
@@ -88,7 +90,7 @@ function IncidentForm({
           disabled={!reason.trim() || submitting}
           style={{ marginLeft: 'auto' }}
         >
-          Reportar
+          {t('routeDetail.incidentSubmit')}
         </button>
       </div>
     </div>
@@ -272,7 +274,7 @@ export default function RouteDetailPage() {
             }}
           >
             <Bus size={16} />
-            <span>{activeBuses.length} en ruta ahora</span>
+            <span>{t('routeDetail.busesActive', { n: activeBuses.length })}</span>
           </div>
         )}
       </div>
@@ -297,7 +299,7 @@ export default function RouteDetailPage() {
             className="badge"
             style={{ background: vehicleColor(route.vehicleKind), color: 'white' }}
           >
-            {route.vehicleKind ?? 'bus'}
+            {route.vehicleKind ?? t('routeDetail.vehicleBadge.bus')}
           </span>
         </div>
 
@@ -305,13 +307,13 @@ export default function RouteDetailPage() {
         {(visibleIncidents.length > 0 || showIncidentForm) && (
           <section className="card mb-3" style={{ borderLeft: '4px solid #dc2626' }}>
             <div className="card-header">
-              <div className="card-title">⚠️ Incidencias ({visibleIncidents.length})</div>
+              <div className="card-title">{t('routeDetail.incidentsTitle', { n: visibleIncidents.length })}</div>
               <button
                 type="button"
                 className="btn btn-sm btn-ghost"
                 onClick={() => setShowIncidentForm((v) => !v)}
               >
-                {showIncidentForm ? 'Cerrar' : <><Plus size={14} /> Reportar</>}
+                {showIncidentForm ? t('routeDetail.closeForm') : <><Plus size={14} /> {t('routeDetail.report')}</>}
               </button>
             </div>
             {visibleIncidents.length > 0 && (
@@ -324,7 +326,7 @@ export default function RouteDetailPage() {
                       <div className="text-xs text-muted">{i.reason}</div>
                       {i.endsAt && (
                         <div className="text-xs text-muted">
-                          hasta {new Date(i.endsAt).toLocaleTimeString()}
+                          {t('routeDetail.incidentUntil', { hora: new Date(i.endsAt).toLocaleTimeString() })}
                         </div>
                       )}
                     </div>
@@ -337,7 +339,7 @@ export default function RouteDetailPage() {
                           setIncidents((cur) => cur.filter((x) => x.id !== i.id));
                         }}
                       >
-                        Resolver
+                        {t('routeDetail.resolve')}
                       </button>
                     ) : null}
                   </li>
@@ -352,6 +354,7 @@ export default function RouteDetailPage() {
                   setIncidents((cur) => [...cur, inc]);
                   setShowIncidentForm(false);
                 }}
+                t={t}
               />
             )}
           </section>
@@ -362,7 +365,7 @@ export default function RouteDetailPage() {
             className="btn btn-block mb-3"
             onClick={() => setShowIncidentForm(true)}
           >
-            <Plus size={14} /> Reportar incidencia
+            <Plus size={14} /> {t('routeDetail.reportIncident')}
           </button>
         )}
 
@@ -373,11 +376,11 @@ export default function RouteDetailPage() {
         {primaryBus && etas.length > 0 && (
           <section className="card mb-3">
             <div className="card-header">
-              <div className="card-title">Tiempo estimado de llegada</div>
-              <span className="badge badge-warning" title="Cálculo aproximado basado en la velocidad del bus">Estimación</span>
+              <div className="card-title">{t('routeDetail.etaTitle')}</div>
+              <span className="badge badge-warning" title={t('routeDetail.etaTooltip')}>{t('routeDetail.etaBadge')}</span>
             </div>
             <p className="text-xs text-muted mb-2">
-              Calculado desde la posición de #{primaryBus.anonId.slice(0, 6)}. Es una estimación — puede variar según tráfico, semáforos y paradas.
+              {t('routeDetail.etaDisclaimer', { id: primaryBus.anonId.slice(0, 6) })}
             </p>
             <div className="list">
               {etas.map((e, i) => (
@@ -387,7 +390,7 @@ export default function RouteDetailPage() {
                   </div>
                   <div className="list-item-body">
                     <div className="list-item-title">
-                      {i === 0 && <strong>Próxima: </strong>}
+                      {i === 0 && <strong>{t('routeDetail.etaNext')}</strong>}
                       {e.stopName}
                     </div>
                     <div className="list-item-sub">

@@ -108,9 +108,9 @@ export default function SettingsPage() {
           passphrase,
         });
         downloadBackup(backup, anonId ?? 'me');
-        flash('Identidad exportada. Guarda el archivo en un lugar seguro.');
+        flash(t('settings.flash.identityExported'));
       } catch (e) {
-        flash(`Error: ${e instanceof Error ? e.message : e}`, true);
+        flash(t('settings.flash.error', { msg: e instanceof Error ? e.message : String(e) }), true);
       } finally {
         setBusy(null);
       }
@@ -123,9 +123,9 @@ export default function SettingsPage() {
       try {
         const jwk = await importIdentityBackup({ backup: mode.file, passphrase });
         await importFromJwk(jwk);
-        flash(`Identidad importada correctamente como #${mode.file.anonId}`);
+        flash(t('settings.flash.identityImported', { anonId: mode.file.anonId }));
       } catch (e) {
-        flash(`Error: ${e instanceof Error ? e.message : e}`, true);
+        flash(t('settings.flash.error', { msg: e instanceof Error ? e.message : String(e) }), true);
       } finally {
         setBusy(null);
       }
@@ -139,9 +139,9 @@ export default function SettingsPage() {
       const data = await exportMyRoutesAsGeoJSON();
       const json = JSON.stringify(data, null, 2);
       downloadFile(json, `portami-rutas-${anonId ?? 'me'}.geojson`);
-      flash(`Exportadas ${data.features.length} entidades`);
+      flash(t('settings.flash.geoJsonExported', { n: data.features.length }));
     } catch (e) {
-      flash(`Error: ${e}`, true);
+      flash(t('settings.flash.error', { msg: e instanceof Error ? e.message : String(e) }), true);
     } finally {
       setBusy(null);
     }
@@ -156,11 +156,11 @@ export default function SettingsPage() {
       const json = JSON.parse(text);
       const res = await importGeoJSON(json, {});
       flash(
-        `${res.imported} importadas, ${res.replaced} reemplazadas, ${res.merged} fusionadas, ${res.skipped} mantenidas` +
-          (res.readonly ? ' (sin firma válida → solo lectura)' : ''),
+        t('settings.flash.geoJsonImported', res) +
+          (res.readonly ? t('settings.flash.geoJsonImportedReadonly') : ''),
       );
     } catch (e) {
-      flash(`Error: ${e}`, true);
+      flash(t('settings.flash.error', { msg: e instanceof Error ? e.message : String(e) }), true);
     } finally {
       setBusy(null);
     }
@@ -200,8 +200,8 @@ export default function SettingsPage() {
         <div className="card-header">
           <div className="list-item-icon"><Key size={20} /></div>
           <div style={{ flex: 1 }}>
-            <div className="card-title">Tu identidad</div>
-            <div className="card-subtitle">Anónima, generada en este dispositivo. Sin cuentas ni servidores.</div>
+            <div className="card-title">{t('settings.identityTitle')}</div>
+            <div className="card-subtitle">{t('settings.identitySubtitle')}</div>
           </div>
         </div>
 
@@ -230,7 +230,7 @@ export default function SettingsPage() {
             #{anonId}
           </div>
           <div className="text-xs text-muted mt-2">
-            Este es tu identidad pública. Otros usuarios la ven cuando compartes un viaje o una ruta.
+            {t('settings.identityPublicHint')}
           </div>
         </div>
 
@@ -247,7 +247,7 @@ export default function SettingsPage() {
             disabled={busy === 'export-id'}
             onClick={() => void onExportIdentity()}
           >
-            <Download size={18} /> Exportar mi identidad
+            <Download size={18} /> {t('settings.exportIdentity')}
           </button>
           <button
             type="button"
@@ -255,7 +255,7 @@ export default function SettingsPage() {
             disabled={busy === 'import-id'}
             onClick={() => void onImportIdentity()}
           >
-            <Upload size={18} /> Importar mi identidad
+            <Upload size={18} /> {t('settings.importIdentity')}
           </button>
         </div>
 
@@ -273,7 +273,7 @@ export default function SettingsPage() {
           style={{ width: '100%', justifyContent: 'space-between' }}
           onClick={() => setShowAdvanced((v) => !v)}
         >
-          <span>Avanzado</span>
+          <span>{t('settings.advanced')}</span>
           <ChevronDown
             size={16}
             style={{ transform: showAdvanced ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
@@ -283,7 +283,7 @@ export default function SettingsPage() {
         {showAdvanced && (
           <div className="mt-3" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div className="field">
-              <label className="field-label">Clave pública (hex)</label>
+              <label className="field-label">{t('settings.publicKeyHex')}</label>
               <div className="row gap-2">
                 <code
                   style={{
@@ -300,11 +300,11 @@ export default function SettingsPage() {
                   {identity.pubKey}
                 </code>
                 <button type="button" className="btn btn-sm" onClick={copyPub}>
-                  <Copy size={16} /> {copied ? '✓' : ''}
+                  <Copy size={16} /> {copied ? t('settings.copied') : ''}
                 </button>
               </div>
               <div className="field-hint">
-                Solo necesaria para auditoría o soporte técnico. No la compartas si no sabes para qué sirve.
+                {t('settings.publicKeyHint')}
               </div>
             </div>
           </div>
@@ -317,7 +317,7 @@ export default function SettingsPage() {
           style={{ width: '100%', justifyContent: 'space-between', color: 'var(--danger)' }}
           onClick={() => setShowDanger((v) => !v)}
         >
-          <span>Zona peligrosa</span>
+          <span>{t('settings.dangerZone')}</span>
           <ChevronDown
             size={16}
             style={{ transform: showDanger ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
@@ -327,15 +327,14 @@ export default function SettingsPage() {
         {showDanger && (
           <div className="mt-3">
             <p className="text-sm text-muted mb-2">
-              Regenerar tu identidad la invalidará. Perderás reputación y se desconectarán tus dispositivos emparejados.
-              Esta acción no se puede deshacer.
+              {t('settings.regenerateHint')}
             </p>
             <button
               type="button"
               className="btn btn-danger btn-block"
               onClick={() => setPrompt({ kind: 'regenerate' })}
             >
-              <AlertTriangle size={16} /> Regenerar identidad
+              <AlertTriangle size={16} /> {t('settings.regenerate')}
             </button>
           </div>
         )}
@@ -344,7 +343,7 @@ export default function SettingsPage() {
       {/* GeoJSON routes */}
       <section className="card mb-4">
         <div className="card-header">
-          <div className="card-title">Mis rutas</div>
+          <div className="card-title">{t('settings.myRoutes')}</div>
         </div>
         <div
           style={{
@@ -359,7 +358,7 @@ export default function SettingsPage() {
             disabled={busy === 'export'}
             onClick={() => void onExport()}
           >
-            <Download size={18} /> Exportar como GeoJSON
+            <Download size={18} /> {t('settings.exportGeoJSON')}
           </button>
           <button
             type="button"
@@ -367,7 +366,7 @@ export default function SettingsPage() {
             disabled={busy === 'import'}
             onClick={() => void onImport()}
           >
-            <Upload size={18} /> Importar GeoJSON
+            <Upload size={18} /> {t('settings.importGeoJSON')}
           </button>
         </div>
       </section>
@@ -377,9 +376,9 @@ export default function SettingsPage() {
         <div className="card-header">
           <div className="list-item-icon"><SyncIcon size={20} /></div>
           <div style={{ flex: 1 }}>
-            <div className="card-title">Sincronizar con otro dispositivo</div>
+            <div className="card-title">{t('settings.syncTitle')}</div>
             <div className="card-subtitle">
-              Pasa tu identidad y tus rutas a otro móvil u ordenador por WebRTC. Sin servidores.
+              {t('settings.syncSubtitle')}
             </div>
           </div>
         </div>
@@ -394,14 +393,14 @@ export default function SettingsPage() {
                 <div className="list-item-body">
                   <div className="list-item-title">{d.alias}</div>
                   <div className="list-item-sub">
-                    #{d.pubKey.slice(0, 8)} · Última sync:{' '}
+                    #{d.pubKey.slice(0, 8)} · {t('settings.lastSync')}{' '}
                     {new Date(d.lastSeenAt).toLocaleString()}
                   </div>
                 </div>
                 <button
                   type="button"
                   className="btn btn-sm btn-ghost"
-                  aria-label="Revocar"
+                  aria-label={t('settings.revoke')}
                   onClick={() => setPrompt({ kind: 'revoke', device: d })}
                 >
                   <Trash size={16} />
@@ -412,10 +411,10 @@ export default function SettingsPage() {
         )}
 
         <button type="button" className="btn btn-primary btn-block" onClick={() => navigate('/sync')}>
-          <SyncIcon size={18} /> Emparejar nuevo dispositivo
+          <SyncIcon size={18} /> {t('settings.pairNew')}
         </button>
         <button type="button" className="btn btn-block mt-2" onClick={() => navigate('/following')}>
-          <ChevronDown size={18} style={{ transform: 'rotate(-90deg)' }} /> Ver viajes compartidos
+          <ChevronDown size={18} style={{ transform: 'rotate(-90deg)' }} /> {t('settings.viewSharedTrips')}
         </button>
       </section>
 
@@ -554,8 +553,8 @@ export default function SettingsPage() {
 
       {prompt?.kind === 'export' && (
         <PassphrasePrompt
-          title="Exportar identidad"
-          description="Elige una contraseña para proteger el archivo (mínimo 8 caracteres). La necesitarás para volver a importarla. NO la pierdas."
+          title={t('settings.exportIdTitle')}
+          description={t('settings.exportIdDesc')}
           confirm
           onSubmit={handlePassphraseSubmit}
           onCancel={() => setPrompt(null)}
@@ -564,8 +563,8 @@ export default function SettingsPage() {
 
       {prompt?.kind === 'import' && (
         <PassphrasePrompt
-          title="Importar identidad"
-          description="Introduce la contraseña del archivo de backup."
+          title={t('settings.importIdTitle')}
+          description={t('settings.importIdDesc')}
           onSubmit={handlePassphraseSubmit}
           onCancel={() => setPrompt(null)}
         />
@@ -573,14 +572,14 @@ export default function SettingsPage() {
 
       {prompt?.kind === 'regenerate' && (
         <ConfirmDialog
-          title="¿Regenerar tu identidad?"
-          description="Tu anonId actual quedará invalidado. Perderás reputación y se desconectarán tus dispositivos emparejados. Esta acción no se puede deshacer."
-          confirmLabel="Sí, regenerar"
+          title={t('settings.regenerateIdTitle')}
+          description={t('settings.regenerateIdDesc')}
+          confirmLabel={t('settings.regenerateConfirm')}
           variant="danger"
           onConfirm={async () => {
             setPrompt(null);
             await regenerate();
-            flash('Identidad regenerada.');
+            flash(t('settings.flash.identityRegenerated'));
           }}
           onCancel={() => setPrompt(null)}
         />
@@ -588,9 +587,9 @@ export default function SettingsPage() {
 
       {prompt?.kind === 'revoke' && (
         <ConfirmDialog
-          title={`¿Revocar "${prompt.device.alias}"?`}
-          description="El dispositivo dejará de recibir tus viajes. La conexión WebRTC activa se cerrará."
-          confirmLabel="Sí, revocar"
+          title={t('settings.revokeTitle', { alias: prompt.device.alias })}
+          description={t('settings.revokeDesc')}
+          confirmLabel={t('settings.revokeConfirm')}
           variant="danger"
           onConfirm={async () => {
             setPrompt(null);

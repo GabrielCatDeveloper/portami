@@ -367,7 +367,7 @@ function JourneyCard({ journey }: { journey: Journey }) {
     <article className="card">
       <div className="row gap-2 mb-2" style={{ alignItems: 'center' }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 'var(--fs-lg)', fontWeight: 700 }}>{minutes} min</div>
+          <div style={{ fontSize: 'var(--fs-lg)', fontWeight: 700 }}>{t('journey.minShort', { n: minutes })}</div>
           <div className="text-sm text-muted">
             {t('journey.rides', { n: journey.boardings })}
             {' · '}

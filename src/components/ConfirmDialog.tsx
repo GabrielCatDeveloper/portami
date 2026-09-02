@@ -73,7 +73,7 @@ export function ConfirmDialog({
             type="button"
             className="btn-icon btn btn-ghost"
             onClick={onCancel}
-            aria-label="Cancelar"
+            aria-label={t('common.cancelAria')}
           >
             <X size={18} />
           </button>

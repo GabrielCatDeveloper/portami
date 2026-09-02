@@ -164,7 +164,7 @@ const [autoEndedReason, setAutoEndedReason] = useState<string | null>(null);
             <Info size={40} />
           </div>
           <h3>{t('trip.permissionNeeded')}</h3>
-          <p className="mb-4">portami necesita tu GPS para mostrar a otros usuarios dónde estás y calcular tu hora de llegada.</p>
+          <p className="mb-4">{t('trip.gpsNeeded')}</p>
           <button
             type="button"
             className="btn btn-primary btn-lg"

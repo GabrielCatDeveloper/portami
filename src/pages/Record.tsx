@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { LeafletMap } from '@/components/LeafletMap';
@@ -18,11 +18,6 @@ const VEHICLE_OPTIONS: Array<{ key: VehicleKind; label: string; icon: React.Reac
   { key: 'tram', label: 'Tram', icon: <Tram size={20} /> },
   { key: 'metro', label: 'Metro', icon: <Train size={20} /> },
   { key: 'other', label: 'Otro', icon: <Bus size={20} /> },
-];
-
-const DAY_KEYS: Array<{ key: number; label: string }> = [
-  { key: 1, label: 'L' }, { key: 2, label: 'M' }, { key: 3, label: 'X' },
-  { key: 4, label: 'J' }, { key: 5, label: 'V' }, { key: 6, label: 'S' }, { key: 0, label: 'D' },
 ];
 
 export default function RecordPage() {
@@ -45,6 +40,16 @@ export default function RecordPage() {
   const recordingIdRef = useRef<string | null>(null);
   const listenerCleanupRef = useRef<(() => void) | null>(null);
 
+  const DAY_KEYS = useMemo(() => [
+    { key: 1, label: t('record.days.mon') },
+    { key: 2, label: t('record.days.tue') },
+    { key: 3, label: t('record.days.wed') },
+    { key: 4, label: t('record.days.thu') },
+    { key: 5, label: t('record.days.fri') },
+    { key: 6, label: t('record.days.sat') },
+    { key: 0, label: t('record.days.sun') },
+  ], [t]);
+
   // Update trim end whenever samples change
   useEffect(() => {
     setTrimEnd(s => Math.max(s, samples.length - 1));
@@ -59,10 +64,10 @@ export default function RecordPage() {
     if (perm !== 'granted') {
       if (perm === 'denied') {
         setError(
-          'Permiso de GPS denegado. Actívalo en los ajustes del navegador y vuelve a intentarlo.',
+          t('record.permissionDenied'),
         );
       } else if (perm === 'error' || !('geolocation' in navigator)) {
-        setError('Tu navegador no soporta geolocalización. Usa un navegador moderno o prueba el modo demo.');
+        setError(t('record.geoNotSupported'));
       } else {
         setError(t('trip.permissionNeeded'));
       }
@@ -85,7 +90,7 @@ export default function RecordPage() {
   const stopRecording = () => {
     geoWatcher.stop();
     if (samples.length < 5) {
-      setError('Necesitamos más muestras para formar una ruta');
+      setError(t('record.notEnoughSamples'));
       setPhase('idle');
       return;
     }
@@ -119,13 +124,13 @@ export default function RecordPage() {
           const midIdx = Math.floor((clusterStart + i) / 2);
           const mid = effectiveSamples[midIdx];
           if (!mid) continue;
-          stops.push({
-            id: `stop-${stops.length}`,
-            idx: midIdx,
-            name: `Parada ${stops.length + 1}`,
-            lat: mid.lat,
-            lng: mid.lng,
-          });
+            stops.push({
+              id: `stop-${stops.length}`,
+              idx: midIdx,
+              name: t('record.autoStopName', { n: stops.length + 1 }),
+              lat: mid.lat,
+              lng: mid.lng,
+            });
         }
       } else {
         clusterStart = i;
@@ -146,7 +151,7 @@ export default function RecordPage() {
 
   const save = async () => {
     if (effectiveSamples.length < 5) {
-      setError('Muy pocos puntos después de recortar');
+      setError(t('record.notEnoughAfterTrim'));
       return;
     }
     if (detectedStops.length < 3) {
@@ -154,7 +159,7 @@ export default function RecordPage() {
       return;
     }
     if (!title.trim()) {
-      setError('Introduce un nombre para la ruta');
+      setError(t('record.nameRequired'));
       return;
     }
     setPhase('saving');
@@ -226,7 +231,7 @@ export default function RecordPage() {
           </div>
           <h3>{t('record.start')}</h3>
           <p className="mb-4">
-            Graba un trayecto real en bus o tren. Al finalizar podrás revisar la ruta, eliminar tramos y nombrarla antes de guardarla.
+            {t('record.intro')}
           </p>
           <div
             style={{
@@ -268,7 +273,7 @@ export default function RecordPage() {
             routes={[
               {
                 id: 'live',
-                name: 'Grabación',
+                name: t('record.temporaryName'),
                 stops: [],
                 polyline: samples.map((s) => [s.lat, s.lng]),
                 createdBy: '',
@@ -296,9 +301,9 @@ export default function RecordPage() {
                 <div className="empty-illustration" style={{ margin: '0 auto 12px' }}>
                   <RecordIcon size={32} />
                 </div>
-                <p style={{ fontWeight: 600 }}>Esperando GPS…</p>
+                <p style={{ fontWeight: 600 }}>{t('record.waitingGps')}</p>
                 <p className="text-sm text-muted">
-                  Sal a la calle o acércate a una ventana. La primera señal puede tardar unos segundos.
+                  {t('record.gpsHint')}
                 </p>
               </div>
             </div>
@@ -309,10 +314,10 @@ export default function RecordPage() {
             <div className="row">
               <RecordIcon size={20} />
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600 }}>Grabando</div>
+                <div style={{ fontWeight: 600 }}>{t('record.recording')}</div>
                 <div style={{ fontSize: 'var(--fs-sm)', opacity: 0.92 }}>
-                  {samples.length} puntos
-                  {lastSample?.speed != null && ` · ${(lastSample.speed * 3.6).toFixed(0)} km/h`}
+                  {t('record.pointsCount', { n: samples.length, count: samples.length })}
+                  {lastSample?.speed != null && t('record.speedSuffix', { v: (lastSample.speed * 3.6).toFixed(0) })}
                 </div>
               </div>
               <span className="trip-banner-pulse" aria-hidden />
@@ -334,7 +339,7 @@ export default function RecordPage() {
           routes={[
             {
               id: 'preview',
-              name: title || 'Vista previa',
+              name: title || t('record.previewName'),
               stops: detectedStops,
               polyline: effectiveSamples.map((s) => [s.lat, s.lng]),
               createdBy: '',
@@ -382,7 +387,7 @@ export default function RecordPage() {
 
           {/* Vehicle kind selector */}
           <div className="field">
-            <label className="field-label">Tipo de vehículo</label>
+            <label className="field-label">{t('record.vehicleType')}</label>
             <div className="row gap-2" style={{ flexWrap: 'wrap' }}>
               {VEHICLE_OPTIONS.map((opt) => (
                 <button
@@ -400,10 +405,10 @@ export default function RecordPage() {
 
           {/* Direction (optional) */}
           <div className="field">
-            <label className="field-label">Sentido (opcional)</label>
+            <label className="field-label">{t('record.direction')}</label>
             <input
               className="input"
-              placeholder="Ej: Centro ↔ Aeropuerto"
+              placeholder={t('record.directionPlaceholder')}
               value={direction}
               onChange={(e) => setDirection(e.target.value)}
             />
@@ -411,7 +416,7 @@ export default function RecordPage() {
 
           {/* Schedule editor */}
           <div className="field">
-            <label className="field-label">Horario (opcional)</label>
+            <label className="field-label">{t('record.schedule')}</label>
             <div className="row gap-1" style={{ flexWrap: 'wrap', marginBottom: 8 }}>
               {DAY_KEYS.map((d) => {
                 const active = activeDays.includes(d.key);
@@ -458,7 +463,7 @@ export default function RecordPage() {
                   ]);
                 }}
               >
-                Añadir
+                {t('record.add')}
               </button>
             </div>
             {schedules.length > 0 && (
@@ -474,7 +479,7 @@ export default function RecordPage() {
                       style={{ padding: 0, color: 'var(--danger)' }}
                       onClick={() => setSchedules((cur) => cur.filter((_, j) => j !== i))}
                     >
-                      Quitar
+                      {t('record.remove')}
                     </button>
                   </div>
                 ))}
@@ -484,7 +489,7 @@ export default function RecordPage() {
 
           <div className="row gap-3 text-sm">
             <div style={{ flex: 1 }}>
-              <div className="text-muted">Inicio</div>
+              <div className="text-muted">{t('record.trimStart')}</div>
               <input
                 type="range"
                 min={0}
@@ -495,7 +500,7 @@ export default function RecordPage() {
               />
             </div>
             <div style={{ flex: 1 }}>
-              <div className="text-muted">Fin</div>
+              <div className="text-muted">{t('record.trimEnd')}</div>
               <input
                 type="range"
                 min={0}
@@ -508,7 +513,7 @@ export default function RecordPage() {
           </div>
 
           <div className="text-sm text-muted mt-2">
-            {effectiveSamples.length} puntos efectivos · {pendingCuts.length} cortes · {detectedStops.length} paradas detectadas
+            {t('record.recordingSummary', { samples: effectiveSamples.length, cuts: pendingCuts.length, stops: detectedStops.length })}
           </div>
 
           {pendingCuts.length > 0 && (
@@ -517,7 +522,7 @@ export default function RecordPage() {
               className="btn btn-sm mt-2"
               onClick={() => setPendingCuts([])}
             >
-              <Trash size={14} /> Limpiar cortes
+              <Trash size={14} /> {t('record.clearCuts')}
             </button>
           )}
         </div>

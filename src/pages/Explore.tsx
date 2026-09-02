@@ -11,14 +11,6 @@ import { useInterval } from '@/hooks/useInterval';
 
 type VehicleFilter = 'all' | VehicleKind;
 
-const VEHICLE_FILTERS: Array<{ key: VehicleFilter; label: string; emoji: string }> = [
-  { key: 'all', label: 'Todos', emoji: '🚌' },
-  { key: 'bus', label: 'Bus', emoji: '🚌' },
-  { key: 'train', label: 'Tren', emoji: '🚆' },
-  { key: 'tram', label: 'Tram', emoji: '🚊' },
-  { key: 'metro', label: 'Metro', emoji: '🚇' },
-];
-
 export default function ExplorePage() {
   const { t } = useTranslation();
   const [allRoutes, setAllRoutes] = useState<Route[]>([]);
@@ -145,18 +137,26 @@ export default function ExplorePage() {
             overflowX: 'auto',
           }}
         >
-          {VEHICLE_FILTERS.map((f) => (
-            <button
-              key={f.key}
-              type="button"
-              className={`chip ${vehicleFilter === f.key ? 'active' : ''}`}
-              onClick={() => setVehicleFilter(f.key)}
-              style={{ whiteSpace: 'nowrap' }}
-            >
-              <span style={{ marginRight: 4 }}>{f.emoji}</span>
-              {f.label}
-            </button>
-          ))}
+          {(['all', 'bus', 'train', 'tram', 'metro'] as VehicleFilter[]).map((k) => {
+            const labelKey = k === 'all' ? 'explore.all' : `vehicle.${k}`;
+            const emoji = k === 'all' ? '🚌'
+              : k === 'bus' ? '🚌'
+              : k === 'train' ? '🚆'
+              : k === 'tram' ? '🚊'
+              : '🚇';
+            return (
+              <button
+                key={k}
+                type="button"
+                className={`chip ${vehicleFilter === k ? 'active' : ''}`}
+                onClick={() => setVehicleFilter(k)}
+                style={{ whiteSpace: 'nowrap' }}
+              >
+                <span style={{ marginRight: 4 }}>{emoji}</span>
+                {t(labelKey)}
+              </button>
+            );
+          })}
         </div>
 
         {/* Active-now toggle */}
@@ -178,7 +178,7 @@ export default function ExplorePage() {
               checked={onlyActiveNow}
               onChange={(e) => setOnlyActiveNow(e.target.checked)}
             />
-            <span>Solo en servicio ahora</span>
+            <span>{t('explore.onlyActive')}</span>
           </label>
         </div>
 
@@ -193,7 +193,7 @@ export default function ExplorePage() {
               boxShadow: 'var(--shadow-sm)',
             }}
           >
-            <strong>⚠️ {visibleIncidents.length} incidencia(s) activa(s)</strong>
+            <strong>{t('explore.incidentsActive', { n: visibleIncidents.length })}</strong>
             <ul style={{ margin: '4px 0 0', paddingLeft: 16 }}>
               {visibleIncidents.slice(0, 3).map((i) => (
                 <li key={i.id}>
@@ -207,7 +207,7 @@ export default function ExplorePage() {
               onClick={() => setHideIncidents(true)}
               style={{ marginTop: 4, padding: 0 }}
             >
-              Ocultar
+              {t('explore.hide')}
             </button>
           </div>
         )}
@@ -218,7 +218,7 @@ export default function ExplorePage() {
             style={{ alignSelf: 'flex-start', background: 'var(--overlay-strong)' }}
             onClick={() => setHideIncidents(false)}
           >
-            ⚠️ {visibleIncidents.length} incidencia(s) activa(s) — mostrar
+            {t('explore.incidentsShow', { n: visibleIncidents.length })}
           </button>
         )}
       </div>
@@ -265,7 +265,7 @@ export default function ExplorePage() {
         <span>{visibleRoutes.length} {t('routes.list').toLowerCase()}</span>
         {busMarkers.length > 0 && (
           <span style={{ color: 'var(--brand-700)', fontWeight: 600 }}>
-            · {busMarkers.map((b) => vehicleEmoji(b.vehicleKind)).join('')} {busMarkers.length} en ruta
+            · {busMarkers.map((b) => vehicleEmoji(b.vehicleKind)).join('')} {t('explore.onRoute', { n: busMarkers.length })}
           </span>
         )}
       </div>

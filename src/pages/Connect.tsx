@@ -232,10 +232,11 @@ function Shell({
   onBack: () => void;
   children: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="page">
       <header className="page-header">
-        <button type="button" className="btn-icon btn" onClick={onBack} aria-label="Volver">
+        <button type="button" className="btn-icon btn" onClick={onBack} aria-label={t('connect.back')}>
           <ArrowLeft />
         </button>
         <h1 style={{ flex: 1 }}>{title}</h1>

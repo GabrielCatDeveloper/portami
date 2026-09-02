@@ -66,7 +66,7 @@ export default function SyncPage() {
             </div>
             <h3>{t('sync.pair')}</h3>
             <p className="mb-4">
-              Sincroniza tu identidad, rutas y propuestas con otro dispositivo por WebRTC. Sin servidor intermedio.
+              {t('sync.intro')}
             </p>
 
             <div
@@ -99,15 +99,15 @@ export default function SyncPage() {
           <section className="card mt-4">
             {showJoinPaste && sync.phase === 'idle' && (
             <section className="card mb-4" style={{ maxWidth: 360, width: '100%', margin: '0 auto' }}>
-              <div className="card-title mb-2">Pegar offer del otro dispositivo</div>
+              <div className="card-title mb-2">{t('sync.pasteOfferTitle')}</div>
               <p className="text-sm text-muted mb-2">
-                Copia el offer SDP que te ha pasado tu amigo y pégalo aquí.
+                {t('sync.pasteOfferDesc')}
               </p>
               <textarea
                 className="textarea"
                 value={pasteValue}
                 onChange={(e) => setPasteValue(e.target.value)}
-                placeholder='{"type":"offer","sdp":"v=0..."}'
+                placeholder={t('sync.pasteOfferPlaceholder')}
                 style={{ fontFamily: 'var(--font-mono)', fontSize: 12, minHeight: 100 }}
               />
               <div className="row gap-2 mt-3">
@@ -116,7 +116,7 @@ export default function SyncPage() {
                   className="btn flex-1"
                   onClick={() => setShowJoinPaste(false)}
                 >
-                  Cancelar
+                  {t('sync.cancel')}
                 </button>
                 <button
                   type="button"
@@ -127,7 +127,7 @@ export default function SyncPage() {
                   }}
                   disabled={!pasteValue.trim()}
                 >
-                  Empezar
+                  {t('sync.start')}
                 </button>
               </div>
             </section>
@@ -166,11 +166,11 @@ export default function SyncPage() {
 
       {(sync.phase === 'awaiting-peer') && (
         <section className="card mb-4">
-          <h3 className="mb-2">{sync.role === 'initiator' ? 'Tu offer SDP' : 'Generando respuesta…'}</h3>
+          <h3 className="mb-2">{sync.role === 'initiator' ? t('sync.yourOffer') : t('connect.generating')}</h3>
           <p className="text-sm text-muted mb-3">
             {sync.role === 'initiator'
-              ? 'Copia este código y pégalo en el otro dispositivo. Luego pega la respuesta del otro dispositivo abajo.'
-              : 'Tu código de respuesta se mostrará a continuación. Cópialo en el dispositivo iniciador.'}
+              ? t('sync.initiatorHint')
+              : t('sync.joinerHint')}
           </p>
           <textarea
             className="textarea"
@@ -180,18 +180,18 @@ export default function SyncPage() {
           />
           <div className="row gap-2 mt-3">
             <button type="button" className="btn flex-1" onClick={() => void copy(sync.myOffer ?? '')}>
-              <Copy size={16} /> {copied ? '✓' : 'Copiar'}
+              <Copy size={16} /> {copied ? '✓' : t('sync.copy')}
             </button>
           </div>
 
           {sync.role === 'initiator' && (
             <div className="mt-4">
-              <label className="field-label">Pega aquí la respuesta del otro dispositivo:</label>
+              <label className="field-label">{t('sync.pasteAnswerLabel')}</label>
               <textarea
                 className="textarea"
                 value={pasteValue}
                 onChange={(e) => setPasteValue(e.target.value)}
-                placeholder='{"type":"answer","sdp":...}'
+                placeholder={t('sync.pasteAnswerPlaceholder')}
                 style={{ fontFamily: 'var(--font-mono)', fontSize: 12, minHeight: 100 }}
               />
               <button
@@ -212,13 +212,13 @@ export default function SyncPage() {
           <div className="empty-illustration" style={{ margin: '0 auto 16px' }}>
             <SyncIcon size={40} />
           </div>
-          <h3>{(sync.phase === 'verifying' && 'Verificando emparejamiento') ||
-               (sync.phase === 'transferring' && 'Transfiriendo identidad cifrada') ||
-               (sync.phase === 'syncing' && 'Sincronizando datos')}</h3>
+          <h3>{(sync.phase === 'verifying' && t('sync.phaseVerify')) ||
+               (sync.phase === 'transferring' && t('sync.phaseTransfer')) ||
+               (sync.phase === 'syncing' && t('sync.phaseSync'))}</h3>
 
           {sync.pairCode && sync.phase === 'verifying' && (
             <>
-              <p className="text-sm text-muted mb-3">Comprueba que el código coincide en ambos dispositivos</p>
+              <p className="text-sm text-muted mb-3">{t('sync.verifyMatchHint')}</p>
               <div style={{
                 fontSize: 36,
                 fontWeight: 800,
@@ -229,7 +229,7 @@ export default function SyncPage() {
               }}>
                 {sync.pairCode}
               </div>
-              <div className="text-sm text-muted">Dispositivo: {sync.peerAlias ?? '…'}</div>
+              <div className="text-sm text-muted">{t('sync.deviceLabel')}{sync.peerAlias ?? '…'}</div>
             </>
           )}
           {sync.progress && sync.phase !== 'verifying' && (
@@ -249,7 +249,7 @@ export default function SyncPage() {
           <h3>{t('sync.success')}</h3>
           <p className="text-sm text-muted">{sync.progress}</p>
           <button type="button" className="btn btn-primary btn-block mt-4" onClick={() => sync.reset()}>
-            OK
+            {t('sync.ok')}
           </button>
         </section>
       )}
@@ -259,7 +259,7 @@ export default function SyncPage() {
           <div className="empty-illustration" style={{ margin: '0 auto 16px', background: 'var(--danger)', color: 'white' }}>
             <AlertTriangle size={40} />
           </div>
-          <h3>{sync.error ?? 'Error'}</h3>
+          <h3>{sync.error ?? t('common.error')}</h3>
           <button type="button" className="btn btn-primary btn-block mt-4" onClick={() => sync.reset()}>
             {t('sync.cancel')}
           </button>

@@ -105,7 +105,7 @@ export default function FollowingPage() {
                   {selected.routeName ?? t('following.noRoute')}
                 </div>
                 <div className="text-xs text-muted">
-                  {t('following.lastUpdate', { time: timeAgo(selected.lastLocation.ts) })}
+                  {t('following.lastUpdate', { time: timeAgo(selected.lastLocation.ts, t) })}
                 </div>
               </div>
             </div>
@@ -151,7 +151,7 @@ export default function FollowingPage() {
                   </div>
                   <div className="list-item-sub">
                     {t('following.endedTimeAgo', {
-                      time: trip.endedAt ? timeAgo(trip.endedAt) : '?',
+                      time: trip.endedAt ? timeAgo(trip.endedAt, t) : '?',
                       reason: trip.endReason,
                     })}
                   </div>
@@ -173,10 +173,10 @@ export default function FollowingPage() {
   );
 }
 
-function timeAgo(ts: number): string {
+function timeAgo(ts: number, t: (key: string, opts?: Record<string, unknown>) => string): string {
   const sec = Math.floor((Date.now() - ts) / 1000);
-  if (sec < 60) return `${sec} s`;
-  if (sec < 3600) return `${Math.floor(sec / 60)} min`;
-  if (sec < 86400) return `${Math.floor(sec / 3600)} h`;
-  return `${Math.floor(sec / 86400)} d`;
+  if (sec < 60) return t('following.timeAgo.sec', { n: sec });
+  if (sec < 3600) return t('following.timeAgo.min', { n: Math.floor(sec / 60) });
+  if (sec < 86400) return t('following.timeAgo.hour', { n: Math.floor(sec / 3600) });
+  return t('following.timeAgo.day', { n: Math.floor(sec / 86400) });
 }

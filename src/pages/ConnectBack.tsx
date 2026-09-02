@@ -56,7 +56,7 @@ export default function ConnectBackPage() {
         // Check whether the pairing actually completed (the store may
         // have moved to phase === 'error' for some reason).
         if (sync.phase === 'error') {
-          setState({ kind: 'error', message: sync.error ?? 'pairing failed' });
+          setState({ kind: 'error', message: sync.error ?? t('connect.pairingFailed') });
           return;
         }
         setState({ kind: 'success' });
@@ -77,7 +77,7 @@ export default function ConnectBackPage() {
   return (
     <div className="page">
       <header className="page-header">
-        <button type="button" className="btn-icon btn" onClick={() => navigate(-1)} aria-label="Volver">
+        <button type="button" className="btn-icon btn" onClick={() => navigate(-1)} aria-label={t('connect.back')}>
           <ArrowLeft />
         </button>
         <h1 style={{ flex: 1 }}>
@@ -104,7 +104,7 @@ export default function ConnectBackPage() {
       {state.kind === 'notForYou' && (
         <div className="banner banner-warning">
           <AlertTriangle size={18} />
-          <span>{t('connect.notForYou')} (para #{state.forAnonId.slice(0, 6)})</span>
+          <span>{t('connect.notForYouFor', { anonId: state.forAnonId.slice(0, 6) })}</span>
         </div>
       )}
 

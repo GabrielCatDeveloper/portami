@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Route } from '@/api/types';
 import { Bell, Plus, Trash, X } from '@/components/icons';
 import {
@@ -29,6 +30,7 @@ const DEFAULT_METERS = 300;
  * Stored locally in IndexedDB. Never synced to the server.
  */
 export function StopAlertsCard({ route, alerts, onChange }: Props) {
+  const { t } = useTranslation();
   const [adding, setAdding] = useState(false);
   const [mode, setMode] = useState<Mode>('minutes');
   const [stopId, setStopId] = useState<string>(route.stops[0]?.id ?? '');
@@ -73,9 +75,9 @@ export function StopAlertsCard({ route, alerts, onChange }: Props) {
           <Bell size={20} />
         </div>
         <div style={{ flex: 1 }}>
-          <div className="card-title">Alertas de parada</div>
+          <div className="card-title">{t('stopAlerts.title')}</div>
           <div className="card-subtitle">
-            Vibración + sonido fuerte cuando estés cerca. Se adapta al tráfico.
+            {t('stopAlerts.subtitle')}
           </div>
         </div>
         <button
@@ -83,13 +85,13 @@ export function StopAlertsCard({ route, alerts, onChange }: Props) {
           className="btn btn-sm"
           onClick={() => setAdding((v) => !v)}
         >
-          {adding ? <><X size={14} /> Cerrar</> : <><Plus size={14} /> Añadir</>}
+          {adding ? <><X size={14} /> {t('stopAlerts.close')}</> : <><Plus size={14} /> {t('stopAlerts.add')}</>}
         </button>
       </div>
 
       {adding && (
         <div className="field">
-          <label className="field-label">Parada</label>
+          <label className="field-label">{t('stopAlerts.fieldStop')}</label>
           <select
             className="select"
             value={stopId}
@@ -106,21 +108,21 @@ export function StopAlertsCard({ route, alerts, onChange }: Props) {
 
       {adding && (
         <div className="field">
-          <label className="field-label">Modo de aviso</label>
+          <label className="field-label">{t('stopAlerts.fieldMode')}</label>
           <div className="row gap-2" style={{ flexWrap: 'wrap' }}>
             <button
               type="button"
               className={`chip ${mode === 'minutes' ? 'active' : ''}`}
               onClick={() => setMode('minutes')}
             >
-              ⏱️ Minutos antes
+              ⏱️ {t('stopAlerts.modeMinutes')}
             </button>
             <button
               type="button"
               className={`chip ${mode === 'meters' ? 'active' : ''}`}
               onClick={() => setMode('meters')}
             >
-              📏 A X metros
+              📏 {t('stopAlerts.modeMeters')}
             </button>
           </div>
         </div>
@@ -128,7 +130,7 @@ export function StopAlertsCard({ route, alerts, onChange }: Props) {
 
       {adding && mode === 'minutes' && (
         <div className="field">
-          <label className="field-label">Avísame con</label>
+          <label className="field-label">{t('stopAlerts.fieldTrigger')}</label>
           <div className="row gap-2" style={{ alignItems: 'center' }}>
             <input
               type="number"
@@ -140,7 +142,7 @@ export function StopAlertsCard({ route, alerts, onChange }: Props) {
               className="input"
               style={{ flex: 1 }}
             />
-            <span className="text-sm text-muted">min de anticipación</span>
+            <span className="text-sm text-muted">{t('stopAlerts.unitMinutes')}</span>
             <input
               type="range"
               min={0.5}
@@ -152,18 +154,18 @@ export function StopAlertsCard({ route, alerts, onChange }: Props) {
             />
           </div>
           <div className="field-hint">
-            Se adapta a la velocidad: con atasco suena más cerca; rápido, antes.
-            {minutes <= 1 ? ' Aviso casi al llegar (≈ 100–300 m en bus urbano).' :
-             minutes <= 3 ? ' Recomendado para trayectos cortos.' :
-             minutes <= 5 ? ' Útil si vas despistado o leyendo.' :
-             ' Mucha antelación — puede que ya te hayas enterado antes.'}
+            {t('stopAlerts.adaptive')}
+            {minutes <= 1 ? ' ' + t('stopAlerts.hint1') :
+             minutes <= 3 ? ' ' + t('stopAlerts.hint2') :
+             minutes <= 5 ? ' ' + t('stopAlerts.hint3') :
+             ' ' + t('stopAlerts.hint4')}
           </div>
         </div>
       )}
 
       {adding && mode === 'meters' && (
         <div className="field">
-          <label className="field-label">Avísame a</label>
+          <label className="field-label">{t('stopAlerts.fieldDistance')}</label>
           <div className="row gap-2" style={{ alignItems: 'center' }}>
             <input
               type="number"
@@ -175,7 +177,7 @@ export function StopAlertsCard({ route, alerts, onChange }: Props) {
               className="input"
               style={{ flex: 1 }}
             />
-            <span className="text-sm text-muted">m</span>
+            <span className="text-sm text-muted">{t('stopAlerts.unitMeters')}</span>
             <input
               type="range"
               min={50}
@@ -187,7 +189,7 @@ export function StopAlertsCard({ route, alerts, onChange }: Props) {
             />
           </div>
           <div className="field-hint">
-            Distancia fija. Útil si la app no recibe tu velocidad (GPS parado).
+            {t('stopAlerts.distanceHint')}
           </div>
         </div>
       )}
@@ -199,13 +201,13 @@ export function StopAlertsCard({ route, alerts, onChange }: Props) {
           onClick={() => void add()}
           disabled={submitting || !stopId}
         >
-          {submitting ? 'Guardando…' : 'Guardar alerta'}
+          {submitting ? t('stopAlerts.saving') : t('stopAlerts.save')}
         </button>
       )}
 
       {alerts.length === 0 && !adding && (
         <p className="text-sm text-muted mt-2">
-          Ninguna alerta configurada. Añade una para que te avisemos al acercarte a una parada.
+          {t('stopAlerts.empty')}
         </p>
       )}
 
@@ -215,9 +217,9 @@ export function StopAlertsCard({ route, alerts, onChange }: Props) {
             const minutes = a.triggerMinutes;
             const meters = a.triggerDistanceM;
             const triggerLabel = minutes != null
-              ? `${minutes} min antes`
+              ? t('stopAlerts.triggerMinutes', { n: minutes })
               : meters != null
-                ? `a ${meters} m`
+                ? t('stopAlerts.triggerMeters', { n: meters })
                 : '?';
             return (
               <li
@@ -235,15 +237,15 @@ export function StopAlertsCard({ route, alerts, onChange }: Props) {
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600, fontSize: 'var(--fs-sm)' }}>{a.stopName}</div>
                   <div className="text-xs text-muted">
-                    Avisa {triggerLabel}
-                    {a.triggered ? ' · Disparada ✓' : ''}
+                    {t('stopAlerts.notifies', { triggerLabel })}
+                    {a.triggered ? t('stopAlerts.firedSuffix') : ''}
                   </div>
                 </div>
                 <button
                   type="button"
                   className="btn btn-ghost btn-sm"
                   onClick={() => void remove(a.id!)}
-                  aria-label="Eliminar alerta"
+                  aria-label={t('stopAlerts.delete')}
                   style={{ padding: 0 }}
                 >
                   <Trash size={16} />
