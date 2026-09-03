@@ -416,8 +416,8 @@
     }
   },
   "server": {
-    "online": "En línia · {{n}} rutes",
-    "onlineAria": "Servidor: connectat ({{n}} rutes)",
+    "online": "En línia",
+    "onlineAria": "Servidor: connectat",
     "saturated": "Servidor saturat — reintentant…",
     "stopped": "Servidor caigut — reintentant uns minuts…",
     "offline": "Mode offline — els viatges només es desen en aquest dispositiu"

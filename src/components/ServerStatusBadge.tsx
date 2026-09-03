@@ -5,11 +5,21 @@ import { Wifi, WifiOff, AlertTriangle, Clock } from '@/components/icons';
 /**
  * Small badge that shows the current server status.
  * Shown at the top of most pages.
+ *
+ * Historically this badge also displayed a route count pulled from
+ * `/health` (e.g. "En línea · 6 rutas"). That number is the **total**
+ * routes the server knows about — not the routes the user can
+ * actually act on in their area, which is what the Home / Explore
+ * lists show (filtered by GPS proximity). Displaying two unrelated
+ * counts in close proximity confused users ("it says 6 but I only
+ * see 2"). The badge is now purely a status indicator; the route
+ * count is no longer surfaced here. If you need the total, query
+ * `get_server_health` from the WebMCP surface.
  */
 export function ServerStatusBadge() {
   const { t } = useTranslation();
   const health = useServerHealth();
-  const { status, routes } = health;
+  const { status } = health;
 
   if (status === 'normal') {
     return (
@@ -24,10 +34,10 @@ export function ServerStatusBadge() {
           borderRadius: 'var(--r-pill)',
           width: 'fit-content',
         }}
-        aria-label={t('server.onlineAria', { n: routes })}
+        aria-label={t('server.onlineAria')}
       >
         <Wifi size={14} />
-        <span>{t('server.online', { n: routes })}</span>
+        <span>{t('server.online')}</span>
       </div>
     );
   }

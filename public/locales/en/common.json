@@ -416,8 +416,8 @@
     }
   },
   "server": {
-    "online": "Online · {{n}} routes",
-    "onlineAria": "Server: connected ({{n}} routes)",
+    "online": "Online",
+    "onlineAria": "Server: connected",
     "saturated": "Server saturated — retrying…",
     "stopped": "Server down — retrying for a few minutes…",
     "offline": "Offline mode — trips only saved on this device"

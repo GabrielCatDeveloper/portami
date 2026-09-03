@@ -416,8 +416,8 @@
     }
   },
   "server": {
-    "online": "En línea · {{n}} rutas",
-    "onlineAria": "Servidor: conectado ({{n}} rutas)",
+    "online": "En línea",
+    "onlineAria": "Servidor: conectado",
     "saturated": "Servidor saturado — reintentando…",
     "stopped": "Servidor caído — reintentando unos minutos…",
     "offline": "Modo offline — los viajes solo se guardan en este dispositivo"
