@@ -240,6 +240,8 @@
   "record": {
     "start": "Grabar ruta",
     "stop": "Detener grabación",
+    "stopSharing": "Dejar de compartir",
+    "alight": "Me bajo del bus",
     "review": "Revisar y guardar",
     "title": "Nombre de la ruta",
     "titlePlaceholder": "Ej: Línea 5 — Centro",
