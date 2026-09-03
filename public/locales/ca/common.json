@@ -240,6 +240,8 @@
   "record": {
     "start": "Gravar ruta",
     "stop": "Aturar gravació",
+    "stopSharing": "Deixar de compartir",
+    "alight": "Baixo de l'autobús",
     "review": "Revisar i desar",
     "title": "Nom de la ruta",
     "titlePlaceholder": "Ex: Línia 5 — Centre",

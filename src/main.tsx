@@ -11,9 +11,7 @@ import { useTestingStore } from '@/state/testing';
 import { initWebMcp, registerAllTools } from '@/webmcp';
 import './i18n';
 
-// Must match the `base` config in vite.config.ts. Read from the same env
-// var so dev (/) and production (/portami/) work correctly.
-const basename = import.meta.env.VITE_BASE_PATH || '/';
+const basename = import.meta.env.BASE_URL;
 
 // MSW is used in three modes:
 //  - DEV (always): easy local development without a backend.

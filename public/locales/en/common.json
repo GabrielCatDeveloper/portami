@@ -240,6 +240,8 @@
   "record": {
     "start": "Record route",
     "stop": "Stop recording",
+    "stopSharing": "Stop sharing",
+    "alight": "I'm getting off the bus",
     "review": "Review and save",
     "title": "Route name",
     "titlePlaceholder": "E.g.: Line 5 — Center",

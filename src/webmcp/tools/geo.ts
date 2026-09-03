@@ -24,11 +24,17 @@ export const geoTools: ModelContextTool[] = [
         }
       }
       return new Promise<GeolocationPosition | null>((resolve) => {
-        const off = geoWatcher.on((sample) => {
+        let leaseId: string | null = null;
+        let settled = false;
+        const finish = (position: GeolocationPosition | null) => {
+          if (settled) return;
+          settled = true;
           off();
-          // Return a GeolocationPosition-shaped object so callers can
-          // extract lat/lng/acc/speed uniformly.
-          resolve({
+          if (leaseId) geoWatcher.stop(leaseId);
+          resolve(position);
+        };
+        const off = geoWatcher.onRaw((sample) => {
+          finish({
             timestamp: sample.ts,
             coords: {
               latitude: sample.lat,
@@ -43,13 +49,11 @@ export const geoTools: ModelContextTool[] = [
             toJSON: () => ({}),
           } as GeolocationPosition);
         });
-        // Kick the watcher in case nothing has fired yet.
-        geoWatcher.start();
-        // Safety net: give up after 15s and return null.
-        setTimeout(() => {
-          off();
-          resolve(null);
-        }, 15_000);
+        leaseId = geoWatcher.start();
+        queueMicrotask(() => {
+          if (settled && leaseId) geoWatcher.stop(leaseId);
+        });
+        setTimeout(() => finish(null), 15_000);
       });
     },
   },

@@ -42,6 +42,19 @@ test.describe('App boot + navigation', () => {
     await expect(page.getByText(/Tu bus, en directo/i)).toBeVisible();
   });
 
+  test('recording shows the live map and trip actions', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('portami.collaborate', '1'));
+    await goto(page)('/record');
+    await page.getByRole('button', { name: 'Grabar ruta' }).click();
+
+    await expect(page.locator('.leaflet-container')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Dejar de compartir' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Me bajo del bus' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Dejar de compartir' }).click();
+    await expect(page.getByText('Sin compartir')).toBeVisible();
+  });
+
   test('bottom-nav links navigate to every top-level page', async ({ page }) => {
     await goto(page)('/');
 

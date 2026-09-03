@@ -12,8 +12,11 @@ import { isCollaborateEnabled } from '@/state/collaborate';
 import { SyntheticGpsSource } from './syntheticGps';
 
 type Listener = (sample: GPSSample) => void;
+type RawListener = (sample: GPSSample) => void;
 
 export type GeoPermission = 'unknown' | 'granted' | 'denied' | 'prompt' | 'error';
+
+export type LeaseId = string;
 
 /**
  * Minimal surface of a GPS source. Both `navigator.geolocation` and
@@ -26,6 +29,10 @@ export interface GpsSource {
     opts?: PositionOptions,
   ): number;
   clearWatch(id: number): void;
+}
+
+function newLeaseId(): LeaseId {
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 class RealGpsSource implements GpsSource {
@@ -50,12 +57,14 @@ export class GeoWatcher {
   private lastSentTs = 0;
   private lastPos: GPSSample | null = null;
   private listeners = new Set<Listener>();
+  private rawListeners = new Set<RawListener>();
   private permission: GeoPermission = 'unknown';
   private currentTripId: string | null = null;
   private sendEveryMs: number;
   private maxAccuracyM: number;
   private source: GpsSource;
   private syntheticSource: SyntheticGpsSource | null = null;
+  private leases = new Set<LeaseId>();
 
   constructor(opts?: { sendEveryMs?: number; maxAccuracyM?: number; source?: GpsSource }) {
     this.sendEveryMs = opts?.sendEveryMs ?? 10_000;
@@ -82,10 +91,23 @@ export class GeoWatcher {
    * to call multiple times — restarts the underlying watch if needed.
    */
   setSource(source: GpsSource): void {
-    const wasRunning = this.watchId !== null;
-    if (wasRunning) this.stop();
+    const watchId = this.watchId;
+    if (watchId !== null) {
+      this.source.clearWatch(watchId);
+      this.watchId = null;
+    }
     this.source = source;
-    if (wasRunning) this.start();
+    if (watchId !== null) {
+      this.watchId = source.watchPosition(
+        (pos) => this.handlePosition(pos),
+        (err) => console.warn('geo error', err),
+        {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 15_000,
+        },
+      );
+    }
   }
 
   /** Re-evaluate testing state and swap source if needed. */
@@ -169,24 +191,39 @@ if ('permissions' in navigator) {
     });
   }
 
-  start(tripId?: string) {
-    if (this.watchId !== null) return;
-    this.currentTripId = tripId ?? this.currentTripId;
-    this.watchId = this.source.watchPosition(
-      (pos) => this.handlePosition(pos),
-      (err) => console.warn('geo error', err),
-      {
-        enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: 15_000,
-      },
-    );
+  start(tripId?: string): LeaseId {
+    const leaseId = newLeaseId();
+    this.leases.add(leaseId);
+    if (tripId !== undefined) this.currentTripId = tripId;
+    if (this.watchId === null) {
+      this.watchId = this.source.watchPosition(
+        (pos) => this.handlePosition(pos),
+        (err) => console.warn('geo error', err),
+        {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 15_000,
+        },
+      );
+    }
+    return leaseId;
   }
 
-  stop() {
-    if (this.watchId !== null) {
-      this.source.clearWatch(this.watchId);
-      this.watchId = null;
+  stop(leaseId?: LeaseId): void {
+    if (leaseId !== undefined) {
+      this.leases.delete(leaseId);
+      if (this.leases.size === 0) {
+        if (this.watchId !== null) {
+          this.source.clearWatch(this.watchId);
+          this.watchId = null;
+        }
+      }
+    } else {
+      this.leases.clear();
+      if (this.watchId !== null) {
+        this.source.clearWatch(this.watchId);
+        this.watchId = null;
+      }
     }
   }
 
@@ -203,6 +240,11 @@ if ('permissions' in navigator) {
     return () => this.listeners.delete(fn);
   }
 
+  onRaw(fn: RawListener): () => void {
+    this.rawListeners.add(fn);
+    return () => this.rawListeners.delete(fn);
+  }
+
   private handlePosition(pos: GeolocationPosition) {
     const sample: GPSSample = {
       ts: pos.timestamp,
@@ -216,6 +258,8 @@ if ('permissions' in navigator) {
       // too inaccurate, skip but keep last position for UI
       return;
     }
+
+    this.rawListeners.forEach((fn) => fn(sample));
 
     // Dedup: skip if moved less than ~5 m AND less than 5 s passed.
     // We compare (lat² + lng²) deltas to avoid the cost of sqrt + cos

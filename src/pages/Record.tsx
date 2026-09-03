@@ -2,12 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { LeafletMap } from '@/components/LeafletMap';
-import { Record as RecordIcon, Stop, Trash, Bus, Train, Tram } from '@/components/icons';
+import { Record as RecordIcon, ShareOff, Trash, Bus, Train, Tram } from '@/components/icons';
 import { geoWatcher } from '@/geo/watcher';
 import { getDB } from '@/storage/db';
 import { randomUUID } from '@/crypto';
 import { apiFetch } from '@/api/client';
 import { useIdentityStore } from '@/state/identity';
+import { useCollaborateStore } from '@/state/collaborate';
 import type { GPSSample, Route, Schedule, VehicleKind } from '@/api/types';
 
 type Phase = 'idle' | 'recording' | 'review' | 'saving';
@@ -23,6 +24,7 @@ const VEHICLE_OPTIONS: Array<{ key: VehicleKind; label: string; icon: React.Reac
 export default function RecordPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const sharingEnabled = useCollaborateStore((state) => state.enabled);
   const [phase, setPhase] = useState<Phase>('idle');
   const [samples, setSamples] = useState<GPSSample[]>([]);
   const [trimStart, setTrimStart] = useState(0);
@@ -39,6 +41,7 @@ export default function RecordPage() {
   const [intervalEnd, setIntervalEnd] = useState('20:00');
   const recordingIdRef = useRef<string | null>(null);
   const listenerCleanupRef = useRef<(() => void) | null>(null);
+  const leaseIdRef = useRef<string | null>(null);
 
   const DAY_KEYS = useMemo(() => [
     { key: 1, label: t('record.days.mon') },
@@ -55,8 +58,17 @@ export default function RecordPage() {
     setTrimEnd(s => Math.max(s, samples.length - 1));
   }, [samples.length]);
 
+  useEffect(() => {
+    return () => {
+      listenerCleanupRef.current?.();
+      if (leaseIdRef.current) geoWatcher.stop(leaseIdRef.current);
+      useCollaborateStore.getState().setEnabled(false);
+    };
+  }, []);
+
   const startRecording = async () => {
     setError(null);
+    setSaveResult(null);
     let perm = await geoWatcher.checkPermission();
     if (perm !== 'granted') {
       perm = await geoWatcher.requestPermission();
@@ -79,16 +91,19 @@ export default function RecordPage() {
     setTrimEnd(0);
     setPendingCuts([]);
     setPhase('recording');
-    // De-register any previous listener to avoid duplicates on re-record
     listenerCleanupRef.current?.();
-    listenerCleanupRef.current = geoWatcher.on((s) => {
+    listenerCleanupRef.current = geoWatcher.onRaw((s) => {
       setSamples((prev) => [...prev, s]);
     });
-    geoWatcher.start();
+    leaseIdRef.current = geoWatcher.start();
   };
 
   const stopRecording = () => {
-    geoWatcher.stop();
+    useCollaborateStore.getState().setEnabled(false);
+    geoWatcher.stop(leaseIdRef.current ?? undefined);
+    listenerCleanupRef.current?.();
+    listenerCleanupRef.current = null;
+    leaseIdRef.current = null;
     if (samples.length < 5) {
       setError(t('record.notEnoughSamples'));
       setPhase('idle');
@@ -319,13 +334,31 @@ export default function RecordPage() {
                   {t('record.pointsCount', { n: samples.length, count: samples.length })}
                   {lastSample?.speed != null && t('record.speedSuffix', { v: (lastSample.speed * 3.6).toFixed(0) })}
                 </div>
+                <div style={{ fontSize: 'var(--fs-sm)', opacity: 0.92 }}>
+                  {sharingEnabled
+                    ? t('trip.liveSharing', { defaultValue: 'Compartiendo ubicación anónimamente' })
+                    : t('trip.liveSharingOff', { defaultValue: 'Sin compartir' })}
+                </div>
               </div>
               <span className="trip-banner-pulse" aria-hidden />
             </div>
           </div>
-          <button type="button" className="btn btn-danger btn-lg btn-block mt-3" onClick={stopRecording}>
-            <Stop size={20} /> {t('record.stop')}
-          </button>
+          <div className="row gap-2 mt-3">
+            <button
+              type="button"
+              className="btn flex-1"
+              onClick={() => useCollaborateStore.getState().setEnabled(false)}
+            >
+              <ShareOff size={20} /> {t('record.stopSharing')}
+            </button>
+            <button
+              type="button"
+              className="btn btn-danger flex-1"
+              onClick={stopRecording}
+            >
+              <Bus size={20} /> {t('record.alight')}
+            </button>
+          </div>
         </div>
       </div>
     );

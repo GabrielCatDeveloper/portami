@@ -35,10 +35,11 @@ export default function ExplorePage() {
   useEffect(() => {
     let mounted = true;
     let off: (() => void) | null = null;
+    let leaseId: string | null = null;
     void geoWatcher.checkPermission().then((p) => {
       if (!mounted) return;
       if (p !== 'granted') return;
-      geoWatcher.start();
+      leaseId = geoWatcher.start();
       off = geoWatcher.on((s) => {
         if (!mounted) return;
         setUserPos({ lat: s.lat, lng: s.lng });
@@ -48,7 +49,7 @@ export default function ExplorePage() {
     return () => {
       mounted = false;
       off?.();
-      geoWatcher.stop();
+      if (leaseId) geoWatcher.stop(leaseId);
     };
   }, []);
 

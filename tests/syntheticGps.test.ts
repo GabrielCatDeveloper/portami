@@ -2,7 +2,9 @@
 // Tests for the synthetic GPS source (used in testing mode)
 // ============================================================
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { GPSSample } from '@/api/types';
 import { SyntheticGpsSource } from '@/geo/syntheticGps';
+import { GeoWatcher } from '@/geo/watcher';
 
 describe('SyntheticGpsSource', () => {
   let source: SyntheticGpsSource;
@@ -76,5 +78,92 @@ describe('SyntheticGpsSource', () => {
     expect(typeof snap.bearing).toBe('number');
     expect(snap.paused).toBe(false);
     expect(snap.uptimeMs).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('GeoWatcher with SyntheticGpsSource', () => {
+  let watcher: GeoWatcher;
+  let source: SyntheticGpsSource;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    source = new SyntheticGpsSource({ intervalMs: 1000, speedMs: 0 });
+    watcher = new GeoWatcher({ source, maxAccuracyM: 100 });
+  });
+
+  afterEach(() => {
+    watcher.stop();
+    vi.useRealTimers();
+  });
+
+  it('raw recording keeps stationary samples while regular listeners remain deduplicated', () => {
+    const rawSamples: GPSSample[] = [];
+    const regularSamples: GPSSample[] = [];
+    watcher.onRaw((sample) => rawSamples.push(sample));
+    watcher.on((sample) => regularSamples.push(sample));
+    const leaseId = watcher.start();
+    const initialTs = rawSamples[0]?.ts;
+    if (initialTs === undefined) throw new Error('expected an initial sample');
+
+    for (let elapsed = 1000; elapsed <= 7000; elapsed += 1000) {
+      vi.setSystemTime(initialTs + elapsed);
+      vi.advanceTimersByTime(1000);
+    }
+
+    expect(rawSamples).toHaveLength(8);
+    expect(regularSamples.length).toBeGreaterThan(0);
+    expect(regularSamples.length).toBeLessThan(rawSamples.length);
+    watcher.stop(leaseId);
+  });
+
+  it('releases only the requested lease', () => {
+    const samples: GPSSample[] = [];
+    watcher.on((sample) => samples.push(sample));
+    const firstLease = watcher.start();
+    const secondLease = watcher.start();
+
+    vi.advanceTimersByTime(0);
+    expect(samples).toHaveLength(1);
+
+    const initialTs = samples[0]?.ts;
+    if (initialTs === undefined) throw new Error('expected an initial sample');
+    watcher.stop(firstLease);
+    vi.setSystemTime(initialTs + 5000);
+    vi.advanceTimersByTime(1000);
+    expect(samples).toHaveLength(2);
+
+    watcher.stop(secondLease);
+    const countAfterStop = samples.length;
+    vi.advanceTimersByTime(5000);
+    expect(samples).toHaveLength(countAfterStop);
+  });
+
+  it('keeps leases valid when the GPS source changes', () => {
+    const samples: GPSSample[] = [];
+    watcher.onRaw((sample) => samples.push(sample));
+    const leaseId = watcher.start();
+    const replacement = new SyntheticGpsSource({ intervalMs: 1000, speedMs: 0 });
+
+    watcher.setSource(replacement);
+    vi.advanceTimersByTime(1000);
+
+    expect(samples).toHaveLength(3);
+    watcher.stop(leaseId);
+    vi.advanceTimersByTime(5000);
+    expect(samples).toHaveLength(3);
+  });
+
+  it('stops every lease when no lease id is provided', () => {
+    const samples: GPSSample[] = [];
+    watcher.on((sample) => samples.push(sample));
+    watcher.start();
+    watcher.start();
+
+    vi.advanceTimersByTime(0);
+    watcher.stop();
+    const countAfterStop = samples.length;
+    vi.advanceTimersByTime(5000);
+
+    expect(samples).toHaveLength(countAfterStop);
   });
 });

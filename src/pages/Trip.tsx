@@ -55,13 +55,14 @@ const [autoEndedReason, setAutoEndedReason] = useState<string | null>(null);
   useEffect(() => {
     if (!activeTrip) return;
     let off: (() => void) | null = null;
+    let leaseId: string | null = null;
 
     void (async () => {
       const p = await geoWatcher.checkPermission();
       setPermission(toTripPermission(p));
       if (p !== 'granted') return;
       geoWatcher.attachTrip(activeTrip.id);
-      geoWatcher.start();
+      leaseId = geoWatcher.start();
       off = geoWatcher.on((s) => {
         setLastSample(s);
         const det = detectorRef.current;
@@ -87,7 +88,7 @@ const [autoEndedReason, setAutoEndedReason] = useState<string | null>(null);
     return () => {
       if (off) off();
       geoWatcher.detachTrip();
-      geoWatcher.stop();
+      if (leaseId) geoWatcher.stop(leaseId);
     };
     // The watcher lifecycle is tied to the active trip id only;
     // re-running on every state change would churn the GPS watcher.

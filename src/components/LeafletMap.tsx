@@ -202,5 +202,5 @@ export function LeafletMap({
     }
   }, [activeBuses]);
 
-  return <div ref={ref} className={`leaflet-container ${className ?? ''}`} />;
+  return <div ref={ref} className={`leaflet-container ${className ?? ''}`} style={{ height: '100%', width: '100%' }} />;
 }
